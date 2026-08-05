@@ -19,8 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.laumar.anilista.R
 
 /**
  * Empty states for the anime list.
@@ -49,10 +51,12 @@ fun EmptyState(
 
 @Composable
 private fun EmptyListState(modifier: Modifier = Modifier) {
+    val listDesc = stringResource(R.string.empty_list_desc)
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .semantics { contentDescription = "Lista vacía. Tocá el botón agregar para crear un anime." },
+            .semantics { contentDescription = listDesc },
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -66,7 +70,7 @@ private fun EmptyListState(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Empieza agregando tu primer anime",
+            text = stringResource(R.string.empty_list_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
@@ -75,7 +79,7 @@ private fun EmptyListState(modifier: Modifier = Modifier) {
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Tocá el botón + para crear uno, o importá tu lista desde un .txt",
+            text = stringResource(R.string.empty_list_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -90,10 +94,12 @@ private fun NoResultsState(
     onClearSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val noResultsDesc = stringResource(R.string.empty_no_results_desc, searchQuery)
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .semantics { contentDescription = "Sin resultados para $searchQuery" },
+            .semantics { contentDescription = noResultsDesc },
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -107,7 +113,7 @@ private fun NoResultsState(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Ningún anime matchea \"$searchQuery\"",
+            text = stringResource(R.string.empty_no_results_text, searchQuery),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -116,7 +122,7 @@ private fun NoResultsState(
         Spacer(modifier = Modifier.height(8.dp))
 
         TextButton(onClick = onClearSearch) {
-            Text("Limpiar búsqueda")
+            Text(stringResource(R.string.empty_clear_search))
         }
     }
 }

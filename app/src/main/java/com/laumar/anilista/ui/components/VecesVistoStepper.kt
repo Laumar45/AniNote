@@ -19,9 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.laumar.anilista.R
 
 @Composable
 fun VecesVistoStepper(
@@ -31,8 +33,10 @@ fun VecesVistoStepper(
     minValue: Int = 1,
     maxValue: Int = 999
 ) {
+    val timesSeenDesc = stringResource(R.string.times_seen_value_desc, value)
+
     Surface(
-        modifier = modifier.semantics { contentDescription = "Veces visto: $value" },
+        modifier = modifier.semantics { contentDescription = timesSeenDesc },
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(
             width = 1.dp,
@@ -53,7 +57,7 @@ fun VecesVistoStepper(
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
-                    contentDescription = "Restar",
+                    contentDescription = stringResource(R.string.stepper_decrement),
                     tint = if (value > minValue)
                         MaterialTheme.colorScheme.primary
                     else
@@ -74,7 +78,7 @@ fun VecesVistoStepper(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Sumar",
+                    contentDescription = stringResource(R.string.stepper_increment),
                     tint = if (value < maxValue)
                         MaterialTheme.colorScheme.primary
                     else

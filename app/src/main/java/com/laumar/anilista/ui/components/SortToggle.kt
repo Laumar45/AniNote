@@ -1,12 +1,14 @@
 package com.laumar.anilista.ui.components
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import com.laumar.anilista.R
 import com.laumar.anilista.viewmodel.SortOrder
 
 @Composable
@@ -15,11 +17,9 @@ fun SortToggle(
     onSelectedChange: (SortOrder) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val green = Color(0xFF4CAF50)
-
     val options = listOf(
-        SortOrder.ASC to "1 - 10",
-        SortOrder.DESC to "10 - 1"
+        SortOrder.ASC to stringResource(R.string.sort_asc),
+        SortOrder.DESC to stringResource(R.string.sort_desc)
     )
 
     SingleChoiceSegmentedButtonRow(modifier = modifier) {
@@ -34,12 +34,12 @@ fun SortToggle(
                 icon = { SegmentedButtonDefaults.Icon(selected == order) },
                 label = { Text(label) },
                 colors = SegmentedButtonDefaults.colors(
-                    activeContainerColor = green,
-                    activeContentColor = Color.White,
-                    activeBorderColor = green,
-                    inactiveContainerColor = Color.Transparent,
-                    inactiveContentColor = Color.Gray,
-                    inactiveBorderColor = Color.Gray
+                    activeContainerColor = MaterialTheme.colorScheme.secondary,
+                    activeContentColor = MaterialTheme.colorScheme.onSurface,
+                    activeBorderColor = MaterialTheme.colorScheme.secondary,
+                    inactiveContainerColor = MaterialTheme.colorScheme.surface,
+                    inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
         }

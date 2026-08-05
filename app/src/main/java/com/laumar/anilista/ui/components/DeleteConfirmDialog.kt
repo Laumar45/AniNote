@@ -4,6 +4,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.laumar.anilista.R
 
 @Composable
 fun DeleteConfirmDialog(
@@ -13,16 +15,16 @@ fun DeleteConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Borrar anime") },
-        text = { Text("¿Borrar \"$animeName\"? Podés deshacer el borrado durante unos segundos.") },
+        title = { Text(stringResource(R.string.delete_title)) },
+        text = { Text(stringResource(R.string.delete_message, animeName)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Borrar")
+                Text(stringResource(R.string.delete_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(stringResource(R.string.dialog_cancel))
             }
         }
     )

@@ -4,6 +4,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.laumar.anilista.R
 
 @Composable
 fun ImportConfirmDialog(
@@ -12,27 +14,29 @@ fun ImportConfirmDialog(
     onCombine: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val formatLabel = if (isJson) "JSON" else "TXT"
-    val title = "Importar archivo $formatLabel"
+    val formatLabel = if (isJson) {
+        stringResource(R.string.import_format_json)
+    } else {
+        stringResource(R.string.import_format_txt)
+    }
+    val title = stringResource(R.string.import_title, formatLabel)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Text(
-                "¿Cómo querés importar los animes del archivo $formatLabel?\n\n" +
-                "• Reemplazar: borra tu lista actual y carga desde el archivo\n" +
-                "• Combinar: agrega los animes del archivo a tu lista actual (se omiten duplicados)"
+                stringResource(R.string.import_body, formatLabel)
             )
         },
         confirmButton = {
             TextButton(onClick = onCombine) {
-                Text("Combinar")
+                Text(stringResource(R.string.import_combine))
             }
         },
         dismissButton = {
             TextButton(onClick = onReplace) {
-                Text("Reemplazar")
+                Text(stringResource(R.string.import_replace))
             }
         }
     )

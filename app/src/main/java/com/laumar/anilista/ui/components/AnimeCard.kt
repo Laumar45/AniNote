@@ -29,8 +29,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.laumar.anilista.R
 import com.laumar.anilista.data.AnimeEntity
+import java.net.URLEncoder
 
 @Composable
 fun AnimeCard(
@@ -41,7 +44,12 @@ fun AnimeCard(
 ) {
     val context = LocalContext.current
 
-    val chipDesc = if (anime.vecesVisto > 1) ", visto ${anime.vecesVisto} veces" else ""
+    val chipDesc = if (anime.vecesVisto > 1) {
+        stringResource(R.string.anime_card_seen_times, anime.vecesVisto)
+    } else {
+        ""
+    }
+    val itemDesc = stringResource(R.string.anime_card_item_desc, position, anime.nombre, chipDesc)
 
     Row(
         modifier = modifier
@@ -50,11 +58,11 @@ fun AnimeCard(
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .semantics { contentDescription = "$position. ${anime.nombre}$chipDesc" },
+            .semantics { contentDescription = itemDesc },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "$position.",
+            text = stringResource(R.string.anime_card_position, position),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
@@ -89,7 +97,7 @@ fun AnimeCard(
             }) {
                 Icon(
                     Icons.Default.ContentCopy,
-                    contentDescription = "Copiar",
+                    contentDescription = stringResource(R.string.anime_card_copy),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -99,7 +107,7 @@ fun AnimeCard(
             }) {
                 Icon(
                     Icons.Default.Search,
-                    contentDescription = "Buscar en Google",
+                    contentDescription = stringResource(R.string.anime_card_search_google),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -107,7 +115,7 @@ fun AnimeCard(
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "Borrar",
+                    contentDescription = stringResource(R.string.anime_card_delete),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -122,6 +130,7 @@ private fun copyToClipboard(context: Context, text: String) {
 }
 
 private fun searchInGoogle(context: Context, query: String) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$query"))
+    val encoded = URLEncoder.encode(query, "UTF-8")
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$encoded"))
     context.startActivity(intent)
 }

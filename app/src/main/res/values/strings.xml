@@ -1,3 +1,76 @@
 <resources>
     <string name="app_name">AniLista</string>
+
+    <!-- Top bar & menu -->
+    <string name="title_my_list">Mi lista</string>
+    <string name="settings_theme">Tema</string>
+    <string name="menu_content_desc">Menú</string>
+    <string name="menu_import">Importar</string>
+    <string name="menu_export_txt">Exportar (.txt)</string>
+    <string name="menu_export_json">Exportar (.json)</string>
+
+    <!-- Floating action button -->
+    <string name="fab_add_anime">Agregar anime</string>
+    <string name="fab_add">Agregar</string>
+
+    <!-- Search -->
+    <string name="search_placeholder">Buscar anime</string>
+    <string name="search_content_desc">Buscar</string>
+    <string name="search_clear_content_desc">Limpiar</string>
+
+    <!-- Sort toggle -->
+    <string name="sort_asc">1 - 10</string>
+    <string name="sort_desc">10 - 1</string>
+
+    <!-- Anime card -->
+    <string name="anime_card_position">%1$d.</string>
+    <string name="anime_card_item_desc">%1$d. %2$s%3$s</string>
+    <string name="anime_card_seen_times">, visto %1$d veces</string>
+    <string name="anime_card_copy">Copiar</string>
+    <string name="anime_card_search_google">Buscar en Google</string>
+    <string name="anime_card_delete">Borrar</string>
+
+    <!-- Add / Edit dialog -->
+    <string name="dialog_add_title">Nuevo anime</string>
+    <string name="dialog_edit_title">Editar</string>
+    <string name="dialog_name_label">Nombre</string>
+    <string name="dialog_times_seen_label">Veces visto</string>
+    <string name="dialog_save">Guardar</string>
+    <string name="dialog_cancel">Cancelar</string>
+
+    <!-- Delete confirm dialog -->
+    <string name="delete_title">Borrar anime</string>
+    <string name="delete_message">¿Borrar &quot;%1$s&quot;? Podés deshacer el borrado durante unos segundos.</string>
+    <string name="delete_confirm">Borrar</string>
+
+    <!-- Import confirm dialog -->
+    <string name="import_format_json">JSON</string>
+    <string name="import_format_txt">TXT</string>
+    <string name="import_title">Importar archivo %1$s</string>
+    <string name="import_body">¿Cómo querés importar los animes del archivo %1$s?\n\n• Reemplazar: borra tu lista actual y carga desde el archivo\n• Combinar: agrega los animes del archivo a tu lista actual (se omiten duplicados)</string>
+    <string name="import_combine">Combinar</string>
+    <string name="import_replace">Reemplazar</string>
+
+    <!-- Empty state -->
+    <string name="empty_list_desc">Lista vacía. Tocá el botón agregar para crear un anime.</string>
+    <string name="empty_list_title">Empieza agregando tu primer anime</string>
+    <string name="empty_list_hint">Tocá el botón + para crear uno, o importá tu lista desde un .txt</string>
+    <string name="empty_no_results_desc">Sin resultados para %1$s</string>
+    <string name="empty_no_results_text">Ningún anime matchea &quot;%1$s&quot;</string>
+    <string name="empty_clear_search">Limpiar búsqueda</string>
+
+    <!-- Veces visto stepper -->
+    <string name="times_seen_value_desc">Veces visto: %1$d</string>
+    <string name="stepper_decrement">Restar</string>
+    <string name="stepper_increment">Sumar</string>
+
+    <!-- Theme bottom sheet -->
+    <string name="theme_mode_label">Modo</string>
+    <string name="theme_mode_light">Claro</string>
+    <string name="theme_mode_dark">Oscuro</string>
+    <string name="theme_mode_system">Sistema</string>
+    <string name="theme_accent_label">Color de acento</string>
+
+    <!-- Snackbar -->
+    <string name="action_undo">Deshacer</string>
 </resources>

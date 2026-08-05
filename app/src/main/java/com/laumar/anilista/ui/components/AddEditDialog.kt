@@ -13,8 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.laumar.anilista.R
 
 @Composable
 fun AddEditDialog(
@@ -42,7 +44,7 @@ fun AddEditDialog(
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = onNombreChange,
-                    label = { Text("Nombre") },
+                    label = { Text(stringResource(R.string.dialog_name_label)) },
                     singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         imeAction = ImeAction.Next
@@ -54,7 +56,7 @@ fun AddEditDialog(
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Veces visto",
+                        text = stringResource(R.string.dialog_times_seen_label),
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                         color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -71,12 +73,12 @@ fun AddEditDialog(
                 onClick = onConfirm,
                 enabled = !nombreVacio
             ) {
-                Text("Guardar")
+                Text(stringResource(R.string.dialog_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(stringResource(R.string.dialog_cancel))
             }
         }
     )

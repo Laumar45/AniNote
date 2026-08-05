@@ -13,8 +13,11 @@ interface AnimeDao {
     @Query("SELECT * FROM animes ORDER BY createdAt ASC")
     fun getAll(): Flow<List<AnimeEntity>>
 
-    @Query("SELECT * FROM animes WHERE nombre = :nombre LIMIT 1")
-    suspend fun findByName(nombre: String): AnimeEntity?
+    @Query("SELECT * FROM animes ORDER BY createdAt DESC")
+    fun getAllDesc(): Flow<List<AnimeEntity>>
+
+    @Query("SELECT * FROM animes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(:nombre)) LIMIT 1")
+    suspend fun findByNameCaseInsensitive(nombre: String): AnimeEntity?
 
     @Insert
     suspend fun insert(anime: AnimeEntity)

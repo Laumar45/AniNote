@@ -47,8 +47,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.laumar.anilista.R
 import com.laumar.anilista.ui.components.AddEditDialog
 import com.laumar.anilista.ui.components.AnimeCard
 import com.laumar.anilista.ui.components.DeleteConfirmDialog
@@ -59,6 +61,7 @@ import com.laumar.anilista.ui.components.ThemeBottomSheet
 import com.laumar.anilista.viewmodel.AnimeViewModel
 import com.laumar.anilista.viewmodel.ThemeViewModel
 import com.laumar.anilista.viewmodel.UiEvent
+import com.laumar.anilista.viewmodel.SortOrder
 import java.io.BufferedReader
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,13 +71,11 @@ fun AnimeListScreen(
     themeViewModel: ThemeViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val mode by themeViewModel.mode.collectAsStateWithLifecycle()
-    val accent by themeViewModel.accent.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingImportContent by remember { mutableStateOf<String?>(null) }
+    var pendingImportContent by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImportIsJson by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -139,6 +140,8 @@ fun AnimeListScreen(
         )
     }
 
+    val undoLabel = stringResource(R.string.action_undo)
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -148,7 +151,7 @@ fun AnimeListScreen(
                 is UiEvent.ShowSnackbarWithUndo -> {
                     val result = snackbarHostState.showSnackbar(
                         message = event.message,
-                        actionLabel = "Deshacer",
+                        actionLabel = undoLabel,
                         duration = SnackbarDuration.Short
                     )
                     if (result == SnackbarResult.ActionPerformed) {
@@ -160,7 +163,11 @@ fun AnimeListScreen(
     }
 
     if (uiState.dialog.showDialog) {
-        val dialogTitle = if (uiState.dialog.editingAnime == null) "Nuevo anime" else "Editar"
+        val dialogTitle = if (uiState.dialog.editingAnime == null) {
+            stringResource(R.string.dialog_add_title)
+        } else {
+            stringResource(R.string.dialog_edit_title)
+        }
         AddEditDialog(
             title = dialogTitle,
             nombre = uiState.dialog.nombre,
@@ -181,6 +188,8 @@ fun AnimeListScreen(
     }
 
     if (showThemeSheet) {
+        val mode by themeViewModel.mode.collectAsStateWithLifecycle()
+        val accent by themeViewModel.accent.collectAsStateWithLifecycle()
         ThemeBottomSheet(
             currentMode = mode,
             currentAccent = accent,
@@ -193,7 +202,7 @@ fun AnimeListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mi lista") },
+                title = { Text(stringResource(R.string.title_my_list)) },
                 actions = {
                     SortToggle(
                         selected = uiState.sortOrder,
@@ -202,14 +211,14 @@ fun AnimeListScreen(
                     IconButton(onClick = { showThemeSheet = true }) {
                         Icon(
                             Icons.Default.Settings,
-                            contentDescription = "Tema",
+                            contentDescription = stringResource(R.string.settings_theme),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = { showMenu = true }) {
                         Icon(
                             Icons.Default.MoreVert,
-                            contentDescription = "Menú",
+                            contentDescription = stringResource(R.string.menu_content_desc),
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -218,21 +227,21 @@ fun AnimeListScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Importar") },
+                            text = { Text(stringResource(R.string.menu_import)) },
                             onClick = {
                                 showMenu = false
                                 importLauncher.launch(arrayOf("text/plain", "application/json"))
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Exportar (.txt)") },
+                            text = { Text(stringResource(R.string.menu_export_txt)) },
                             onClick = {
                                 showMenu = false
                                 exportTxtLauncher.launch("anime_list.txt")
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Exportar (.json)") },
+                            text = { Text(stringResource(R.string.menu_export_json)) },
                             onClick = {
                                 showMenu = false
                                 exportJsonLauncher.launch("anime_list.json")
@@ -249,8 +258,8 @@ fun AnimeListScreen(
         floatingActionButton = {
             if (uiState.animes.isEmpty() && uiState.query.isBlank()) {
                 ExtendedFloatingActionButton(
-                    text = { Text("Agregar anime") },
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Agregar") },
+                    text = { Text(stringResource(R.string.fab_add_anime)) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.fab_add)) },
                     onClick = viewModel::openAddDialog,
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -261,7 +270,7 @@ fun AnimeListScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Agregar")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.fab_add))
                 }
             }
         },
@@ -279,11 +288,11 @@ fun AnimeListScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Buscar anime") },
+                placeholder = { Text(stringResource(R.string.search_placeholder)) },
                 leadingIcon = {
                     Icon(
                         Icons.Default.Search,
-                        contentDescription = "Buscar"
+                        contentDescription = stringResource(R.string.search_content_desc)
                     )
                 },
                 trailingIcon = {
@@ -291,7 +300,7 @@ fun AnimeListScreen(
                         IconButton(onClick = { viewModel.onQueryChange("") }) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "Limpiar"
+                                contentDescription = stringResource(R.string.search_clear_content_desc)
                             )
                         }
                     }
@@ -316,10 +325,14 @@ fun AnimeListScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                itemsIndexed(uiState.animes) { index, anime ->
+                itemsIndexed(uiState.animes, key = { _, anime -> anime.id }) { index, anime ->
+                    val position = when (uiState.sortOrder) {
+                        SortOrder.ASC -> index + 1
+                        SortOrder.DESC -> uiState.animes.size - index
+                    }
                     AnimeCard(
                         anime = anime,
-                        position = index + 1,
+                        position = position,
                         onDelete = { viewModel.requestDelete(anime) },
                         modifier = Modifier.clickable { viewModel.openEditDialog(anime) }
                     )

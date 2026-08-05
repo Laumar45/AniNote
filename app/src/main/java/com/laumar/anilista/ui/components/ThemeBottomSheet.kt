@@ -24,11 +24,14 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.laumar.anilista.R
 import com.laumar.anilista.ui.theme.AccentCircleColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,21 +53,23 @@ fun ThemeBottomSheet(
         ) {
             // --- Selector de modo ---
             Text(
-                text = "Modo",
+                text = stringResource(R.string.theme_mode_label),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            val modes = listOf(
-                "light" to "Claro",
-                "dark" to "Oscuro",
-                "system" to "Sistema"
-            )
+            val modes = remember {
+                listOf(
+                    "light" to R.string.theme_mode_light,
+                    "dark" to R.string.theme_mode_dark,
+                    "system" to R.string.theme_mode_system
+                )
+            }
 
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                modes.forEachIndexed { index, (mode, label) ->
+                modes.forEachIndexed { index, (mode, labelRes) ->
                     SegmentedButton(
                         shape = SegmentedButtonDefaults.itemShape(
                             index = index,
@@ -73,7 +78,7 @@ fun ThemeBottomSheet(
                         onClick = { onModeChange(mode) },
                         selected = currentMode == mode,
                         icon = { SegmentedButtonDefaults.Icon(currentMode == mode) },
-                        label = { Text(label) }
+                        label = { Text(stringResource(labelRes)) }
                     )
                 }
             }
@@ -82,14 +87,14 @@ fun ThemeBottomSheet(
 
             // --- Selector de acento ---
             Text(
-                text = "Color de acento",
+                text = stringResource(R.string.theme_accent_label),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            val accents = listOf("green", "orange", "blue", "purple")
+            val accents = remember { listOf("green", "orange", "blue", "purple") }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

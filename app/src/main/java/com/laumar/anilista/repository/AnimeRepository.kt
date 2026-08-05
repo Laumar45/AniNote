@@ -8,6 +8,8 @@ class AnimeRepository(private val dao: AnimeDao) {
 
     val allAnimes: Flow<List<AnimeEntity>> = dao.getAll()
 
+    val allAnimesDesc: Flow<List<AnimeEntity>> = dao.getAllDesc()
+
     suspend fun insert(anime: AnimeEntity) {
         dao.insert(anime)
     }
@@ -20,8 +22,8 @@ class AnimeRepository(private val dao: AnimeDao) {
         dao.deleteById(id)
     }
 
-    suspend fun findByName(nombre: String): AnimeEntity? {
-        return dao.findByName(nombre)
+    suspend fun findByNameCaseInsensitive(nombre: String): AnimeEntity? {
+        return dao.findByNameCaseInsensitive(nombre)
     }
 
     suspend fun deleteAll() {

@@ -9,6 +9,7 @@ import com.laumar.anilista.utils.parseTxtFile
 import com.laumar.anilista.utils.parseJson
 import com.laumar.anilista.utils.formatTxtExport
 import com.laumar.anilista.utils.serializeJson
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -28,6 +30,12 @@ data class DialogState(
 )
 
 enum class SortOrder { ASC, DESC }
+
+data class DataState(
+    val animes: List<AnimeEntity> = emptyList(),
+    val query: String = "",
+    val sortOrder: SortOrder = SortOrder.ASC
+)
 
 data class UiState(
     val animes: List<AnimeEntity> = emptyList(),
@@ -52,40 +60,39 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
     private val _pendingDeleteAnime = MutableStateFlow<AnimeEntity?>(null)
     private var deleteJob: Job? = null
 
+    @OptIn(FlowPreview::class)
+    val dataState: StateFlow<DataState> = combine(
+        _sortOrder.flatMapLatest { order ->
+            when (order) {
+                SortOrder.ASC -> repository.allAnimes
+                SortOrder.DESC -> repository.allAnimesDesc
+            }
+        },
+        _query,
+        _sortOrder
+    ) { animes, query, sortOrder ->
+        DataState(
+            animes = animes.filter { it.nombre.contains(query, ignoreCase = true) },
+            query = query,
+            sortOrder = sortOrder
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DataState())
+
     val uiState: StateFlow<UiState> = combine(
+        dataState,
+        _dialog,
         _pendingDeleteIds,
         _pendingDeleteAnime
-    ) { ids, anime -> Pair(ids, anime) }
-        .let { pendingFlow ->
-            combine(
-                repository.allAnimes,
-                _query,
-                _sortOrder,
-                _dialog,
-                pendingFlow
-            ) { animes, query, sortOrder, dialog, pending ->
-                val pendingDeleteIds = pending.first
-                val pendingDeleteAnime = pending.second
-                val filtered = animes
-                    .filter { it.id !in pendingDeleteIds }
-                    .filter { it.nombre.contains(query, ignoreCase = true) }
-
-                val sorted = when (sortOrder) {
-                    SortOrder.ASC -> filtered.sortedBy { it.createdAt }
-                    SortOrder.DESC -> filtered.sortedByDescending { it.createdAt }
-                }
-
-                UiState(
-                    animes = sorted,
-                    query = query,
-                    sortOrder = sortOrder,
-                    dialog = dialog,
-                    pendingDeleteIds = pendingDeleteIds,
-                    pendingDeleteAnime = pendingDeleteAnime
-                )
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
+    ) { data, dialog, pendingDeleteIds, pendingDeleteAnime ->
+        UiState(
+            animes = data.animes.filter { it.id !in pendingDeleteIds },
+            query = data.query,
+            sortOrder = data.sortOrder,
+            dialog = dialog,
+            pendingDeleteIds = pendingDeleteIds,
+            pendingDeleteAnime = pendingDeleteAnime
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 
     private val _events = Channel<UiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
@@ -227,8 +234,16 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
 
                 if (replace) {
                     repository.deleteAll()
-                    val entities = animesToImport.map { (nombre, vecesVisto) ->
-                        AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
+                    val base = System.currentTimeMillis()
+                    val entities = mutableListOf<AnimeEntity>()
+                    animesToImport.forEachIndexed { index, (nombre, vecesVisto) ->
+                        entities.add(
+                            AnimeEntity(
+                                nombre = nombre,
+                                vecesVisto = vecesVisto.coerceAtLeast(1),
+                                createdAt = base + index
+                            )
+                        )
                     }
                     repository.insertAll(entities)
                     val ignored = if (ignoredCount > 0) " ($ignoredCount líneas ignoradas por formato inválido)" else ""
@@ -238,7 +253,7 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
                     var imported = 0
                     var duplicates = 0
                     for ((nombre, vecesVisto) in animesToImport) {
-                        val existing = repository.findByName(nombre)
+                        val existing = repository.findByNameCaseInsensitive(nombre)
                         if (existing == null) {
                             repository.insert(
                                 AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
