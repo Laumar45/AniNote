@@ -13,3 +13,41 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+.nfs*
+
+# Android Studio
+/.idea/*
+!/.idea/codeStyles
+!/.idea/gradle.xml
+!/.idea/encodings.xml
+!/.idea/misc.xml
+!/.idea/vcs.xml
+*.hprof
+*.traces
+
+# Gradle
+/.gradle/
+/gradle/wrapper/gradle-wrapper.jar
+/gradle/wrapper/gradle-wrapper.properties
+/gradle/wrapper/gradle-wrapper.properties.bak
+
+# Build
+/build/
+/app/build/
+/captures/
+
+# OS generated files
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db

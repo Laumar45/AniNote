@@ -137,6 +137,8 @@ De arriba hacia abajo, dentro de un `Scaffold`:
    - Botón de "limpiar" (X) cuando hay texto
    - El indicador de foco usa el color `primary` (acento activo)
 
+**Persistencia de estado UI a rotación**: `showThemeSheet`, `showMenu`, `showImportDialog` y `pendingImportIsJson` usan `rememberSaveable` (no `remember`) para sobrevivir a rotación de pantalla. El query de búsqueda vive en el ViewModel (`StateFlow`), así que ya persiste naturalmente.
+
 3. **Lista** (`LazyColumn`)
    - Cada ítem es una `AnimeCard` (ver §9)
    - Espaciado entre items: 8dp
@@ -174,6 +176,7 @@ De arriba hacia abajo, dentro de un `Scaffold`:
 
 **Validación**:
 - Nombre vacío → botón "Guardar" deshabilitado
+- Nombre con saltos de línea (`\r`, `\n`) → se reemplazan por espacios antes de guardar (`replace(Regex("[\\r\\n]+"), " ")`). Un nombre pegado desde un documento multilínea no debería crear entradas rotas
 - Veces visto = 0 o negativo → no se permite (el input lo bloquea con `keyboardType = Number` y validación en el `onValueChange`)
 
 ### 4.3 Bottom sheet de tema
@@ -449,9 +452,11 @@ val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
 
 #### Comportamiento al importar
 
-Al elegir el archivo (vía SAF), se detecta el formato por extensión:
-- `.json` → se parsea como JSON, **preservando `vecesVisto`** del archivo
-- `.txt` (o cualquier otra extensión) → se parsea como texto plano, con todas las entradas en `vecesVisto = 1`
+Al elegir el archivo (vía SAF), se detecta el formato **por contenido** (no por extensión):
+- Si el contenido empieza con `{` → se parsea como JSON, **preservando `vecesVisto`** del archivo
+- Cualquier otro caso → se parsea como texto plano, con todas las entradas en `vecesVisto = 1`
+
+**Por qué no por extensión**: las URIs de SAF no siempre incluyen la extensión en el string (ej: `content://com.android.providers.downloads.documents/document/147`). Detectar por contenido es robusto y no depende del comportamiento del file picker del sistema.
 
 Después, diálogo de confirmación con dos opciones:
 
@@ -536,6 +541,19 @@ Se documenta porque en iteraciones futuras podría usarse para comparar backups 
 - Un único `SnackbarHostState` en el `Scaffold` de la pantalla principal.
 - Los mensajes se disparan vía `LaunchedEffect` con eventos one-shot del ViewModel (`SharedFlow<Event>`) — no acumular mensajes en estado UI.
 
+### 6.1 Accesibilidad (semantics)
+
+`Modifier.semantics` en componentes clave para que TalkBack lea contenido descriptivo:
+
+| Componente | contentDescription |
+|---|---|
+| `AnimeCard` | `"1. Konosuba, visto 2 veces"` — posición + nombre + vecesVisto si > 1 |
+| `VecesVistoStepper` | `"Veces visto: 3"` — valor actual |
+| `EmptyState` (lista vacía) | `"Lista vacía. Tocá el botón agregar para crear un anime."` |
+| `EmptyState` (sin resultados) | `"Sin resultados para {query}"` |
+
+**Regla**: `contentDescription` se arma en runtime con los datos del estado, no es estático. Los botones de acción (copiar, Google, borrar) ya tienen `contentDescription` implícito por el `Icon` + `IconButton` de M3.
+
 ---
 
 ## 7. Fuera de alcance (MVP)
@@ -597,6 +615,11 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 | 17 | Import: default "Combinar" (no "Reemplazar") | Menos destructivo ante error |
 | 18 | `SortToggle` con 2 estados: Ascendente (`createdAt` ASC, "1 → 10") y Descendente (`createdAt` DESC, "10 → 1"). Default = Ascendente. Ubicado en el TopBar. Sin ordenamiento alfabético | Solo importa el orden cronológico. El usuario quiere ver qué agregó primero/último, no ordenar por nombre. Mantenerlo en el TopBar reduce clicks y lo hace accesible siempre |
 | 19 | Soporte dual de import/export: `.txt` (humano) y `.json` (machine backup). `.txt` no preserva `vecesVisto`; `.json` sí | Separa "formato para leer/compartir" de "formato para backup/restauración". Cubre los dos casos de uso reales sin agregar complejidad innecesaria |
+| 20 | Import: auto-detección de formato por contenido (no por extensión) | Las URIs de SAF no siempre incluyen `.json` en el string. Detectar por contenido (`startsWith("{")`) es robusto y no depende del file picker |
+| 21 | `rememberSaveable` para estados UI transitorios (sheet, menú, dialogs) | Sobreviven rotación de pantalla. El query vive en ViewModel, no necesita `rememberSaveable` |
+| 22 | Strip de newlines en nombres al guardar | Evita entradas rotas si el usuario pega texto multilínea desde un documento |
+| 23 | `Modifier.semantics` en componentes clave | Accesibilidad básica: TalkBack lee posición + nombre + vecesVisto en tarjetas, valor en stepper, estados vacíos descriptivos |
+| 24 | `AniListaApp` (Application) para init temprano de Room | Mueve el cold start de Room detrás del splash del sistema, no detrás del primer render de MainActivity |
 
 ---
 
@@ -605,40 +628,45 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 ```
 app/src/main/java/tupackage/
 │
+├── AniListaApp.kt                → Application: init temprano de Room DB en onCreate()
+│
 ├── data/
-│   ├── AnimeEntity.kt          → @Entity con id, nombre, vecesVisto, createdAt
-│   ├── AnimeDao.kt             → queries: getAll() (Flow), insert, update, delete, findByName
-│   ├── AppDatabase.kt          → @Database, singleton. `fallbackToDestructiveMigration()` aceptable solo en debug builds; en release, migración explícita. Para MVP sin schema migrations.
-│   └── ThemePreferences.kt     → DataStore: modo + acento, expuesto como Flow
+│   ├── AnimeEntity.kt            → @Entity con id, nombre, vecesVisto, createdAt
+│   ├── AnimeDao.kt               → queries: getAll() (Flow), insert, update, delete, findByName
+│   ├── AppDatabase.kt            → @Database, singleton. `fallbackToDestructiveMigration()` aceptable solo en debug builds; en release, migración explícita. Para MVP sin schema migrations.
+│   └── ThemePreferences.kt       → DataStore: modo + acento, expuesto como Flow
 │
 ├── repository/
-│   └── AnimeRepository.kt      → intermediario entre DAO y ViewModel
+│   └── AnimeRepository.kt        → intermediario entre DAO y ViewModel
 │
 ├── viewmodel/
-│   ├── AnimeViewModel.kt       → estado de la lista, query, orden, eventos one-shot
-│   └── ThemeViewModel.kt       → estado del tema, lee/escribe DataStore
+│   ├── AnimeViewModel.kt         → estado de la lista, query, orden, eventos one-shot
+│   └── ThemeViewModel.kt         → estado del tema, lee/escribe DataStore
 │
 ├── ui/
 │   ├── theme/
-│   │   ├── Color.kt            → tokens por acento (4 paletas x 2 modos = 8 ColorSchemes)
-│   │   ├── Theme.kt            → composición: toma modo + acento, devuelve MaterialTheme
-│   │   └── Type.kt             → Typography de M3 (titleMedium, labelSmall, etc.)
+│   │   ├── Color.kt              → tokens por acento (4 paletas x 2 modos = 8 ColorSchemes)
+│   │   ├── Theme.kt              → composición: toma modo + acento, devuelve MaterialTheme
+│   │   └── Type.kt               → Typography de M3 (titleMedium, labelSmall, etc.)
 │   │
 │   ├── screens/
-│   │   └── AnimeListScreen.kt  → pantalla principal, orquesta todo
+│   │   └── AnimeListScreen.kt    → pantalla principal, orquesta todo
 │   │
 │   └── components/
-│       ├── AnimeCard.kt        → tarjeta individual
-│       ├── AddEditDialog.kt    → diálogo agregar/editar
-│       ├── ThemeBottomSheet.kt → selector de modo + acento
-│       ├── SortToggle.kt       → control de orden ascendente/descendente por `createdAt` (TopBar)
-│       └── EmptyState.kt       → estado vacío (lista vacía o búsqueda sin resultados)
+│       ├── AnimeCard.kt          → tarjeta individual (con semantics)
+│       ├── AddEditDialog.kt      → diálogo agregar/editar
+│       ├── DeleteConfirmDialog.kt→ diálogo de confirmación de borrado
+│       ├── ImportConfirmDialog.kt→ diálogo de confirmación de import (Reemplazar / Combinar)
+│       ├── VecesVistoStepper.kt  → stepper +/- para veces visto (con semantics)
+│       ├── ThemeBottomSheet.kt   → selector de modo + acento
+│       ├── SortToggle.kt         → control de orden ascendente/descendente por `createdAt` (TopBar)
+│       └── EmptyState.kt         → estado vacío (lista vacía o búsqueda sin resultados, con semantics)
 │
 ├── utils/
-│   ├── ImportExportUtils.kt    → parseFile() (txt), formatLine() (txt), helpers SAF
-│   └── JsonImportExport.kt     → parseJson(), serializeJson(), AnimeJson, AnimeListJson (@Serializable)
+│   ├── ImportExportUtils.kt      → parseTxtFile(), formatTxtLine(), formatTxtExport()
+│   └── JsonImportExport.kt       → parseJson(), serializeJson(), AnimeJson, AnimeListJson (@Serializable)
 │
-└── MainActivity.kt             → punto de entrada, hostea el AnimeListScreen
+└── MainActivity.kt               → punto de entrada, hostea el AnimeListScreen
 ```
 
 ---
