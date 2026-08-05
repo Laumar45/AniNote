@@ -1,5 +1,9 @@
 package com.laumar.anilista.ui.screens
 
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,8 +16,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
@@ -35,19 +42,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.laumar.anilista.ui.components.AddEditDialog
 import com.laumar.anilista.ui.components.AnimeCard
 import com.laumar.anilista.ui.components.DeleteConfirmDialog
+import com.laumar.anilista.ui.components.EmptyState
+import com.laumar.anilista.ui.components.ImportConfirmDialog
 import com.laumar.anilista.ui.components.SortToggle
 import com.laumar.anilista.ui.components.ThemeBottomSheet
 import com.laumar.anilista.viewmodel.AnimeViewModel
 import com.laumar.anilista.viewmodel.ThemeViewModel
 import com.laumar.anilista.viewmodel.UiEvent
+import java.io.BufferedReader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +71,73 @@ fun AnimeListScreen(
     val mode by themeViewModel.mode.collectAsStateWithLifecycle()
     val accent by themeViewModel.accent.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showThemeSheet by remember { mutableStateOf(false) }
+    var showThemeSheet by rememberSaveable { mutableStateOf(false) }
+    var showMenu by rememberSaveable { mutableStateOf(false) }
+    var showImportDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingImportContent by remember { mutableStateOf<String?>(null) }
+    var pendingImportIsJson by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // SAF launcher for import (OpenDocument)
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            val content = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader ->
+                reader.readText()
+            }
+            if (content != null) {
+                val isJson = it.toString().endsWith(".json", ignoreCase = true)
+                pendingImportContent = content
+                pendingImportIsJson = isJson
+                showImportDialog = true
+            }
+        }
+    }
+
+    // SAF launcher for export TXT
+    val exportTxtLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer ->
+                writer.write(viewModel.getExportTxt())
+            }
+            viewModel.events.let { /* Event will be sent by ViewModel */ }
+        }
+    }
+
+    // SAF launcher for export JSON
+    val exportJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer ->
+                writer.write(viewModel.getExportJson())
+            }
+        }
+    }
+
+    // Import confirmation dialog
+    if (showImportDialog && pendingImportContent != null) {
+        ImportConfirmDialog(
+            isJson = pendingImportIsJson,
+            onReplace = {
+                viewModel.importAnimes(pendingImportContent!!, replace = true)
+                showImportDialog = false
+                pendingImportContent = null
+            },
+            onCombine = {
+                viewModel.importAnimes(pendingImportContent!!, replace = false)
+                showImportDialog = false
+                pendingImportContent = null
+            },
+            onDismiss = {
+                showImportDialog = false
+                pendingImportContent = null
+            }
+        )
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -128,6 +206,39 @@ fun AnimeListScreen(
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Menú",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Importar") },
+                            onClick = {
+                                showMenu = false
+                                importLauncher.launch(arrayOf("text/plain", "application/json"))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Exportar (.txt)") },
+                            onClick = {
+                                showMenu = false
+                                exportTxtLauncher.launch("anime_list.txt")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Exportar (.json)") },
+                            onClick = {
+                                showMenu = false
+                                exportJsonLauncher.launch("anime_list.json")
+                            }
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -192,19 +303,27 @@ fun AnimeListScreen(
                 )
             )
 
-            // --- List ---
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                itemsIndexed(uiState.animes) { _, anime ->
+            // --- Content ---
+            if (uiState.animes.isEmpty()) {
+                EmptyState(
+                    isEmptyList = uiState.query.isBlank(),
+                    searchQuery = uiState.query,
+                    onClearSearch = { viewModel.onQueryChange("") }
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                itemsIndexed(uiState.animes) { index, anime ->
                     AnimeCard(
                         anime = anime,
-                        position = anime.id.toInt(),
+                        position = index + 1,
                         onDelete = { viewModel.requestDelete(anime) },
                         modifier = Modifier.clickable { viewModel.openEditDialog(anime) }
                     )
+                }
                 }
             }
         }

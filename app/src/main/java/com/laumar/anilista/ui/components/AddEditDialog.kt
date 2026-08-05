@@ -3,8 +3,6 @@ package com.laumar.anilista.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -31,6 +28,7 @@ fun AddEditDialog(
 ) {
     val nombreVacio = nombre.isBlank()
     val focusRequester = remember { FocusRequester() }
+    val vecesVistoInt = vecesVisto.toIntOrNull() ?: 1
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -40,13 +38,13 @@ fun AddEditDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = onNombreChange,
                     label = { Text("Nombre") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         imeAction = ImeAction.Next
                     ),
                     modifier = Modifier
@@ -54,22 +52,18 @@ fun AddEditDialog(
                         .focusRequester(focusRequester)
                 )
 
-                OutlinedTextField(
-                    value = vecesVisto,
-                    onValueChange = onVecesVistoChange,
-                    label = { Text("Veces visto") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            if (!nombreVacio) onConfirm()
-                        }
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Veces visto",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    VecesVistoStepper(
+                        value = vecesVistoInt,
+                        onValueChange = { onVecesVistoChange(it.toString()) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         },
         confirmButton = {

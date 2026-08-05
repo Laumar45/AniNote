@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.laumar.anilista.data.AnimeEntity
 import com.laumar.anilista.repository.AnimeRepository
+import com.laumar.anilista.utils.parseTxtFile
+import com.laumar.anilista.utils.parseJson
+import com.laumar.anilista.utils.formatTxtExport
+import com.laumar.anilista.utils.serializeJson
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -127,7 +131,8 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
 
     fun confirmDialog() {
         val state = _dialog.value
-        val nombre = state.nombre.trim()
+        // Strip newlines and collapse whitespace — names shouldn't contain line breaks
+        val nombre = state.nombre.replace(Regex("[\\r\\n]+"), " ").trim()
         val vecesVisto = state.vecesVisto.toIntOrNull() ?: 1
         val editing = state.editingAnime
 
@@ -192,6 +197,92 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
 
         // Quitar del pending delete (vuelve a aparecer en la lista)
         _pendingDeleteIds.value = _pendingDeleteIds.value - animeId
+    }
+
+    // --- Import/Export ---
+
+    /**
+     * Import animes from content string.
+     * Format is auto-detected: JSON if content starts with '{', TXT otherwise.
+     * @param content Raw file content
+     * @param replace true to replace all existing animes, false to combine (skip duplicates)
+     */
+    fun importAnimes(content: String, replace: Boolean) {
+        viewModelScope.launch {
+            try {
+                var ignoredCount = 0
+                val isJson = content.trimStart().startsWith("{")
+                val animesToImport: List<Pair<String, Int>> = if (isJson) {
+                    parseJson(content)
+                } else {
+                    val result = parseTxtFile(content)
+                    ignoredCount = result.ignoredCount
+                    result.animes.map { it to 1 }
+                }
+
+                if (animesToImport.isEmpty()) {
+                    _events.send(UiEvent.ShowSnackbar("No se encontraron animes en el archivo"))
+                    return@launch
+                }
+
+                if (replace) {
+                    repository.deleteAll()
+                    val entities = animesToImport.map { (nombre, vecesVisto) ->
+                        AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
+                    }
+                    repository.insertAll(entities)
+                    val ignored = if (ignoredCount > 0) " ($ignoredCount líneas ignoradas por formato inválido)" else ""
+                    _events.send(UiEvent.ShowSnackbar("Importaste ${animesToImport.size} animes${ignored} (lista reemplazada)"))
+                } else {
+                    // Combine: skip duplicates
+                    var imported = 0
+                    var duplicates = 0
+                    for ((nombre, vecesVisto) in animesToImport) {
+                        val existing = repository.findByName(nombre)
+                        if (existing == null) {
+                            repository.insert(
+                                AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
+                            )
+                            imported++
+                        } else {
+                            duplicates++
+                        }
+                    }
+                    val parts = mutableListOf("Importaste $imported animes")
+                    if (ignoredCount > 0) parts.add("$ignoredCount líneas ignoradas por formato inválido")
+                    if (duplicates > 0) parts.add("$duplicates duplicados omitidos")
+                    val msg = if (parts.size > 1) {
+                        "${parts[0]} (${parts.drop(1).joinToString(", ")})"
+                    } else {
+                        parts[0]
+                    }
+                    _events.send(UiEvent.ShowSnackbar(msg))
+                }
+            } catch (e: Exception) {
+                val msg = when {
+                    e is IllegalArgumentException -> e.message ?: "Error al importar"
+                    e is kotlinx.serialization.SerializationException -> "Archivo JSON inválido"
+                    e.message?.contains("JSON") == true -> "Archivo JSON inválido"
+                    else -> "Error al importar archivo"
+                }
+                _events.send(UiEvent.ShowSnackbar(msg))
+            }
+        }
+    }
+
+    /**
+     * Get export content for TXT format.
+     */
+    fun getExportTxt(): String {
+        val animes = uiState.value.animes.map { it.nombre to it.vecesVisto }
+        return formatTxtExport(animes)
+    }
+
+    /**
+     * Get export content for JSON format.
+     */
+    fun getExportJson(): String {
+        return serializeJson(uiState.value.animes)
     }
 }
 

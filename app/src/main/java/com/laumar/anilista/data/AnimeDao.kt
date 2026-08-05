@@ -27,4 +27,10 @@ interface AnimeDao {
 
     @Query("DELETE FROM animes WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM animes")
+    suspend fun deleteAll()
+
+    @Insert
+    suspend fun insertAll(animes: List<AnimeEntity>)
 }

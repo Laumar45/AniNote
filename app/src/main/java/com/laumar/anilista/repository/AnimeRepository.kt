@@ -23,4 +23,12 @@ class AnimeRepository(private val dao: AnimeDao) {
     suspend fun findByName(nombre: String): AnimeEntity? {
         return dao.findByName(nombre)
     }
+
+    suspend fun deleteAll() {
+        dao.deleteAll()
+    }
+
+    suspend fun insertAll(animes: List<AnimeEntity>) {
+        dao.insertAll(animes)
+    }
 }

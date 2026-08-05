@@ -260,17 +260,17 @@ Ambas fuentes se leen desde el `ViewModel` con `.stateIn(viewModelScope, ...)` p
 
 **Decisión deliberada — `stringPreferencesKey` vs `intPreferencesKey`**: aunque el acento es un enum cerrado con 4 valores, se usa `stringPreferencesKey` por dos razones: (1) el archivo DataStore queda legible si lo abrís con un editor de prefs (`accent = "green"` en vez de `accent = 2`); (2) la diferencia de performance es nula a esta escala. Trade-off documentado, no un descuido.
 
-### 5.2 Número de lista — derivado del `id`, no del índice
+### 5.2 Número de lista — posición visual
 
-**Decisión cerrada**: el número que se ve en cada tarjeta **no existe como columna** en `AnimeEntity`. Se calcula en `AnimeListScreen` como `anime.id.toInt()` — el `id` auto-incrementado de Room.
+**Decisión cerrada**: el número que se ve en cada tarjeta **es la posición visual** en la lista filtrada/ordenada actual (1, 2, 3...). Se calcula como `index + 1` en el `LazyColumn`.
 
 **Implicaciones**:
-- El número refleja el **orden de inserción** (cuándo se agregó), no la posición visual actual.
-- Cambiar el orden o el filtro **no** cambia los números que se ven — Konosuba sigue siendo "1." aunque se muestre al final de la lista.
+- El número **cambia** al borrar, ordenar, o filtrar — refleja dónde está el item *ahora*, no cuándo se creó.
+- Si borrás el item "1.", el que era "2." pasa a ser "1."
+- Al buscar, los números se recalculan según la posición en la lista filtrada.
 - No hay que reescribir la DB al reordenar.
-- El `id` es la fuente de verdad del orden temporal: se asigna al insertar y nunca cambia.
 
-**Comportamiento durante búsqueda**: el número es estable — no se recalcula al filtrar. Si Konosuba es "1." y se busca "isekai", isekai nonbiri aparece como "2." (su `id`), no "1."
+**Comportamiento durante búsqueda**: el número se recalcula. Si Konosuba es "1." y se busca "isekai", isekai nonbiri aparece como "1." (primer resultado), no "2."
 
 ### 5.3 vecesVisto — independiente del nombre
 
@@ -584,8 +584,8 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 | 4 | Fuente del sistema (Roboto) | Una app así no justifica peso ni setup de fuente custom |
 | 5 | Sin DI framework (Hilt/Koin) | Un solo grafo, ViewModel con factory simple alcanza |
 | 6 | Sin Navigation Compose | Una sola pantalla con estados, no hay rutas |
-| 7 | Número de lista derivado del `id` (auto-increment Room), no del índice | El número es estable: no cambia al reordenar o filtrar. Refleja el orden de inserción, no la posición visual |
-| 8 | Número refleja inserción (`id`), no posición filtrada | El número es estable y predecible. El usuario siempre sabe cuál es el "1." sin importar cómo ordene la lista |
+| 7 | Número de lista = posición visual (`index + 1`), no el `id` de Room | El número refleja dónde está el item ahora, no cuándo se creó. Cambia al borrar, ordenar o filtrar |
+| 8 | Número se recalcula al filtrar/buscar | El usuario siempre ve secuencia 1, 2, 3... independientemente del query u orden activo |
 | 9 | `vecesVisto` independiente del nombre | Cero ambigüedad de parsing, modelo limpio |
 | 10 | `vecesVisto > 1` muestra chip + tinte | "Destacar" implica más que un chip suelto |
 | 11 | Tap en tarjeta = editar (sin ícono dedicado) | El target más grande es la mejor UX para la acción primaria |
