@@ -23,9 +23,12 @@ data class DialogState(
     val vecesVisto: String = "1"
 )
 
+enum class SortOrder { ASC, DESC }
+
 data class UiState(
     val animes: List<AnimeEntity> = emptyList(),
     val query: String = "",
+    val sortOrder: SortOrder = SortOrder.ASC,
     val dialog: DialogState = DialogState(),
     val pendingDeleteIds: Set<Long> = emptySet(),
     val pendingDeleteAnime: AnimeEntity? = null
@@ -39,29 +42,59 @@ sealed class UiEvent {
 class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
 
     private val _query = MutableStateFlow("")
+    private val _sortOrder = MutableStateFlow(SortOrder.ASC)
     private val _dialog = MutableStateFlow(DialogState())
     private val _pendingDeleteIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _pendingDeleteAnime = MutableStateFlow<AnimeEntity?>(null)
     private var deleteJob: Job? = null
 
     val uiState: StateFlow<UiState> = combine(
-        repository.allAnimes,
-        _query,
-        _dialog,
         _pendingDeleteIds,
         _pendingDeleteAnime
-    ) { animes, query, dialog, pendingDeleteIds, pendingDeleteAnime ->
-        UiState(
-            animes = animes.filter { it.id !in pendingDeleteIds },
-            query = query,
-            dialog = dialog,
-            pendingDeleteIds = pendingDeleteIds,
-            pendingDeleteAnime = pendingDeleteAnime
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
+    ) { ids, anime -> Pair(ids, anime) }
+        .let { pendingFlow ->
+            combine(
+                repository.allAnimes,
+                _query,
+                _sortOrder,
+                _dialog,
+                pendingFlow
+            ) { animes, query, sortOrder, dialog, pending ->
+                val pendingDeleteIds = pending.first
+                val pendingDeleteAnime = pending.second
+                val filtered = animes
+                    .filter { it.id !in pendingDeleteIds }
+                    .filter { it.nombre.contains(query, ignoreCase = true) }
+
+                val sorted = when (sortOrder) {
+                    SortOrder.ASC -> filtered.sortedBy { it.createdAt }
+                    SortOrder.DESC -> filtered.sortedByDescending { it.createdAt }
+                }
+
+                UiState(
+                    animes = sorted,
+                    query = query,
+                    sortOrder = sortOrder,
+                    dialog = dialog,
+                    pendingDeleteIds = pendingDeleteIds,
+                    pendingDeleteAnime = pendingDeleteAnime
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 
     private val _events = Channel<UiEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    // --- Search & Sort ---
+
+    fun onQueryChange(query: String) {
+        _query.value = query
+    }
+
+    fun onSortOrderChange(sortOrder: SortOrder) {
+        _sortOrder.value = sortOrder
+    }
 
     // --- Dialog ---
 
@@ -113,22 +146,6 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
                 _events.send(UiEvent.ShowSnackbar("Anime actualizado"))
             }
             _dialog.value = DialogState()
-        }
-    }
-
-    // --- CRUD ---
-
-    fun addAnime(nombre: String) {
-        if (nombre.isBlank()) return
-        viewModelScope.launch {
-            repository.insert(AnimeEntity(nombre = nombre.trim()))
-            _events.send(UiEvent.ShowSnackbar("Anime agregado"))
-        }
-    }
-
-    fun updateAnime(anime: AnimeEntity) {
-        viewModelScope.launch {
-            repository.update(anime)
         }
     }
 

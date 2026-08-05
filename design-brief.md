@@ -122,8 +122,14 @@ De arriba hacia abajo, dentro de un `Scaffold`:
 
 1. **Top bar** (`TopAppBar` de M3)
    - Título: "Mi lista"
-   - Acción derecha 1: ícono de tema (abre bottom sheet — §4.3)
-   - Acción derecha 2: menú overflow (tres puntos) con "Importar" / "Exportar" — §4.4
+   - Acción derecha 1: **SortToggle** — control de orden con 2 estados:
+     - **Ascendente** ("1 → 10") — por `createdAt` ascendente (más antiguos primero)
+     - **Descendente** ("10 → 1") — por `createdAt` descendente (más recientes primero)
+     - Implementación: `SingleChoiceSegmentedButtonRow` de M3 (2 botones segmentados)
+     - Default al abrir la app = Ascendente — es el orden esperado después de import, y para entradas nuevas respeta la secuencia temporal
+     - Sin ordenamiento alfabético de ningún tipo — solo cronológico por fecha de creación
+   - Acción derecha 2: ícono de tema (abre bottom sheet — §4.3)
+   - Acción derecha 3: menú overflow (tres puntos) con "Importar" / "Exportar" — §4.4
 
 2. **Barra de búsqueda** (`SearchBar` de M3 o `OutlinedTextField` con `Icons.Search`)
    - **Persistente**, debajo del top bar, no colapsable detrás de un ícono. Buscar es acción frecuente, no secundaria.
@@ -131,23 +137,12 @@ De arriba hacia abajo, dentro de un `Scaffold`:
    - Botón de "limpiar" (X) cuando hay texto
    - El indicador de foco usa el color `primary` (acento activo)
 
-3. **Fila de controles de orden** (`SortToggle` — ver §9)
-   - **3 estados**, no 2:
-     - **Original** — por `createdAt` ascendente (orden en que se agregaron o importaron)
-     - **A → Z** — alfabético ascendente
-     - **Z → A** — alfabético descendente
-   - Implementación: `SingleChoiceSegmentedButtonRow` de M3 (compacto) o un cycle button con ícono + label (más minimalista)
-   - **Nota de versión**: `SingleChoiceSegmentedButtonRow` requiere M3 1.2.0+. Verificar la versión de `androidx.compose.material3` en `libs.versions.toml` (o `build.gradle.kts`) antes de implementar. **Fallback** si la versión no alcanza: cycle button manual con `FilterChip` (más antiguo, más componentes pero usa API estable).
-   - **Default al abrir la app = Original** — es el orden esperado después de import, y para entradas nuevas respeta la secuencia temporal
-   - Altura máxima 48dp, alineado a la derecha
-   - Cuando hay una búsqueda activa, este control funciona sobre el resultado filtrado (el número de lista se recalcula — ver §5.2)
-
-4. **Lista** (`LazyColumn`)
+3. **Lista** (`LazyColumn`)
    - Cada ítem es una `AnimeCard` (ver §9)
    - Espaciado entre items: 8dp
    - Padding inferior: 88dp para que el FAB no tape la última tarjeta al scroll
 
-5. **FAB**
+4. **FAB**
    - **Lista con items**: `FloatingActionButton` estándar
      - Posición: bottom-end
      - Ícono: `Icons.Default.Add`
@@ -265,16 +260,17 @@ Ambas fuentes se leen desde el `ViewModel` con `.stateIn(viewModelScope, ...)` p
 
 **Decisión deliberada — `stringPreferencesKey` vs `intPreferencesKey`**: aunque el acento es un enum cerrado con 4 valores, se usa `stringPreferencesKey` por dos razones: (1) el archivo DataStore queda legible si lo abrís con un editor de prefs (`accent = "green"` en vez de `accent = 2`); (2) la diferencia de performance es nula a esta escala. Trade-off documentado, no un descuido.
 
-### 5.2 Número de lista — derivado, no almacenado
+### 5.2 Número de lista — derivado del `id`, no del índice
 
-**Decisión cerrada**: el número que se ve en cada tarjeta **no existe como columna** en `AnimeEntity`. Se calcula en `AnimeListScreen` como `index + 1` de la lista ya filtrada y ordenada.
+**Decisión cerrada**: el número que se ve en cada tarjeta **no existe como columna** en `AnimeEntity`. Se calcula en `AnimeListScreen` como `anime.id.toInt()` — el `id` auto-incrementado de Room.
 
 **Implicaciones**:
-- Cambiar el orden o el filtro cambia automáticamente los números que se ven.
+- El número refleja el **orden de inserción** (cuándo se agregó), no la posición visual actual.
+- Cambiar el orden o el filtro **no** cambia los números que se ven — Konosuba sigue siendo "1." aunque se muestre al final de la lista.
 - No hay que reescribir la DB al reordenar.
-- No hay un "número original" separado — la única fuente de verdad es la posición actual.
+- El `id` es la fuente de verdad del orden temporal: se asigna al insertar y nunca cambia.
 
-**Comportamiento durante búsqueda**: el número refleja la posición **dentro del resultado filtrado**, no en la lista completa. Ejemplo: la lista tiene 47 animes, el usuario busca "naruto" y aparece uno solo → se numera "1.", no "23." (su posición original). Esto es coherente con el principio de que el número refleja el orden visible.
+**Comportamiento durante búsqueda**: el número es estable — no se recalcula al filtrar. Si Konosuba es "1." y se busca "isekai", isekai nonbiri aparece como "2." (su `id`), no "1."
 
 ### 5.3 vecesVisto — independiente del nombre
 
@@ -588,8 +584,8 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 | 4 | Fuente del sistema (Roboto) | Una app así no justifica peso ni setup de fuente custom |
 | 5 | Sin DI framework (Hilt/Koin) | Un solo grafo, ViewModel con factory simple alcanza |
 | 6 | Sin Navigation Compose | Una sola pantalla con estados, no hay rutas |
-| 7 | Número de lista derivado, no almacenado | Evita reescritura al reordenar, única fuente de verdad |
-| 8 | Número refleja posición filtrada, no original | Consistente con el principio "lo que ves es lo que es" |
+| 7 | Número de lista derivado del `id` (auto-increment Room), no del índice | El número es estable: no cambia al reordenar o filtrar. Refleja el orden de inserción, no la posición visual |
+| 8 | Número refleja inserción (`id`), no posición filtrada | El número es estable y predecible. El usuario siempre sabe cuál es el "1." sin importar cómo ordene la lista |
 | 9 | `vecesVisto` independiente del nombre | Cero ambigüedad de parsing, modelo limpio |
 | 10 | `vecesVisto > 1` muestra chip + tinte | "Destacar" implica más que un chip suelto |
 | 11 | Tap en tarjeta = editar (sin ícono dedicado) | El target más grande es la mejor UX para la acción primaria |
@@ -599,7 +595,7 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 | 15 | Import parser es "tonto" (no parsea `xN`) | El usuario reconcilia manualmente, modelo simple gana |
 | 16 | Export agrega sufijo solo si `vecesVisto > 1` | Mantiene el archivo limpio para la mayoría de los casos |
 | 17 | Import: default "Combinar" (no "Reemplazar") | Menos destructivo ante error |
-| 18 | `SortToggle` con 3 estados: Original (`createdAt` ASC), A→Z, Z→A. Default = Original | Tras import, el usuario espera ver el orden del archivo. "Original" se materializa vía el campo `createdAt` que ya está en la entity |
+| 18 | `SortToggle` con 2 estados: Ascendente (`createdAt` ASC, "1 → 10") y Descendente (`createdAt` DESC, "10 → 1"). Default = Ascendente. Ubicado en el TopBar. Sin ordenamiento alfabético | Solo importa el orden cronológico. El usuario quiere ver qué agregó primero/último, no ordenar por nombre. Mantenerlo en el TopBar reduce clicks y lo hace accesible siempre |
 | 19 | Soporte dual de import/export: `.txt` (humano) y `.json` (machine backup). `.txt` no preserva `vecesVisto`; `.json` sí | Separa "formato para leer/compartir" de "formato para backup/restauración". Cubre los dos casos de uso reales sin agregar complejidad innecesaria |
 
 ---
@@ -635,7 +631,7 @@ app/src/main/java/tupackage/
 │       ├── AnimeCard.kt        → tarjeta individual
 │       ├── AddEditDialog.kt    → diálogo agregar/editar
 │       ├── ThemeBottomSheet.kt → selector de modo + acento
-│       ├── SortToggle.kt       → control compacto de orden
+│       ├── SortToggle.kt       → control de orden ascendente/descendente por `createdAt` (TopBar)
 │       └── EmptyState.kt       → estado vacío (lista vacía o búsqueda sin resultados)
 │
 ├── utils/
@@ -691,7 +687,6 @@ Este orden no es arbitrario. Cada paso construye sobre el anterior y expone conc
 - `FloatingActionButton` y `ExtendedFloatingActionButton` (este último se usa en empty state — ver §4.1)
 - `TopAppBar` con actions
 - Estado local: `remember { mutableStateOf(...) }` vs `rememberSaveable`
-- `derivedStateOf` para el número de lista calculado
 - Render condicional: `if (lista.isEmpty()) ExtendedFAB() else FAB()` (la transición automática entre los dos FABs según el estado de la lista)
 
 **Deliverable**: lista scrolleable con tarjetas. FAB cambia entre `ExtendedFloatingActionButton` (lista vacía, con texto "Agregar anime") y `FloatingActionButton` estándar (lista con items) automáticamente. Sin interactividad más allá del scroll.
@@ -744,10 +739,10 @@ Este orden no es arbitrario. Cada paso construye sobre el anterior y expone conc
 - `SearchBar` o `OutlinedTextField` con leading icon
 - `filter { }` y `sortedBy { }` sobre `Flow` o listas en memoria
 - `derivedStateOf` para mantener la lista derivada sincronizada con query + sort
-- `SingleChoiceSegmentedButtonRow` de M3 para el `SortToggle` con 3 estados (Original / A→Z / Z→A)
-- `Icons.Default.ArrowUpward` / `ArrowDownward` / `Sort` (íconos para los estados de sort)
+- `SingleChoiceSegmentedButtonRow` de M3 para el `SortToggle` con 2 estados (Ascendente / Descendente)
+- Integración del `SortToggle` en el `TopAppBar` actions (slot system)
 
-**Deliverable**: barra de búsqueda filtra en vivo. `SortToggle` cicla entre los 3 estados. La lista se recalcula automáticamente cuando cambia query u orden. El número de lista se actualiza solo (ver §5.2).
+**Deliverable**: barra de búsqueda filtra en vivo. `SortToggle` en el TopBar cicla entre Ascendente y Descendente. La lista se recalcula automáticamente cuando cambia query u orden. El número de lista se actualiza solo (ver §5.2).
 
 ### Paso 8 — Bottom sheet de tema + DataStore aplicado
 **Conceptos a aprender**:

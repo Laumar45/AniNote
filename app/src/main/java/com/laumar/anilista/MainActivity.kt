@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.laumar.anilista.data.AppDatabase
 import com.laumar.anilista.repository.AnimeRepository
 import com.laumar.anilista.ui.screens.AnimeListScreen
@@ -33,8 +35,14 @@ class MainActivity : ComponentActivity() {
         )[ThemeViewModel::class.java]
 
         setContent {
-            AniListaTheme {
-                AnimeListScreen(viewModel = animeViewModel)
+            val mode by themeViewModel.mode.collectAsStateWithLifecycle()
+            val accent by themeViewModel.accent.collectAsStateWithLifecycle()
+
+            AniListaTheme(mode = mode, accent = accent) {
+                AnimeListScreen(
+                    viewModel = animeViewModel,
+                    themeViewModel = themeViewModel
+                )
             }
         }
     }
