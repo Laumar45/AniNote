@@ -71,14 +71,14 @@ fun ThemeBottomSheet(
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 modes.forEachIndexed { index, (mode, labelRes) ->
                     SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = modes.size
-                        ),
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size),
                         onClick = { onModeChange(mode) },
                         selected = currentMode == mode,
                         icon = { SegmentedButtonDefaults.Icon(currentMode == mode) },
-                        label = { Text(stringResource(labelRes)) }
+                        label = { Text(stringResource(labelRes)) },
+                        colors = SegmentedButtonDefaults.colors(
+                            activeContainerColor = MaterialTheme.colorScheme.secondary
+                        )
                     )
                 }
             }

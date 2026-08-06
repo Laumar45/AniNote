@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class ThemeViewModel(private val context: Context) : ViewModel() {
+class ThemeViewModel(context: Context) : ViewModel() {
+    private val appContext = context.applicationContext
 
     val mode: StateFlow<String> = ThemePreferences.getMode(context)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.defaultMode)
@@ -20,13 +21,13 @@ class ThemeViewModel(private val context: Context) : ViewModel() {
 
     fun setMode(mode: String) {
         viewModelScope.launch {
-            ThemePreferences.setMode(context, mode)
+            ThemePreferences.setMode(appContext, mode)
         }
     }
 
     fun setAccent(accent: String) {
         viewModelScope.launch {
-            ThemePreferences.setAccent(context, accent)
+            ThemePreferences.setAccent(appContext, accent)
         }
     }
 }

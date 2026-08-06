@@ -1,6 +1,5 @@
 package com.laumar.anilista.ui.screens
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,7 +43,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -62,7 +60,6 @@ import com.laumar.anilista.viewmodel.AnimeViewModel
 import com.laumar.anilista.viewmodel.ThemeViewModel
 import com.laumar.anilista.viewmodel.UiEvent
 import com.laumar.anilista.viewmodel.SortOrder
-import java.io.BufferedReader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

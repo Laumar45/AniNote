@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
 data class DialogState(
     val showDialog: Boolean = false,
@@ -60,7 +61,7 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
     private val _pendingDeleteAnime = MutableStateFlow<AnimeEntity?>(null)
     private var deleteJob: Job? = null
 
-    @OptIn(FlowPreview::class)
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     val dataState: StateFlow<DataState> = combine(
         _sortOrder.flatMapLatest { order ->
             when (order) {
@@ -182,7 +183,7 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
         deleteJob?.cancel()
 
         // Marcar como pending delete (se oculta de la lista)
-        _pendingDeleteIds.value = _pendingDeleteIds.value + anime.id
+        _pendingDeleteIds.value += anime.id
 
         // Enviar evento con snackbar + undo (send es suspend, va en coroutine)
         viewModelScope.launch {
@@ -194,7 +195,7 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
             delay(4000)
             // Si expira el delay, borrar definitivamente
             repository.deleteById(anime.id)
-            _pendingDeleteIds.value = _pendingDeleteIds.value - anime.id
+            _pendingDeleteIds.value -= anime.id
         }
     }
 
@@ -203,7 +204,7 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
         deleteJob?.cancel()
 
         // Quitar del pending delete (vuelve a aparecer en la lista)
-        _pendingDeleteIds.value = _pendingDeleteIds.value - animeId
+        _pendingDeleteIds.value -= animeId
     }
 
     // --- Import/Export ---
@@ -275,8 +276,8 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
                 }
             } catch (e: Exception) {
                 val msg = when {
-                    e is IllegalArgumentException -> e.message ?: "Error al importar"
                     e is kotlinx.serialization.SerializationException -> "Archivo JSON inválido"
+                    e is IllegalArgumentException -> e.message ?: "Error al importar"
                     e.message?.contains("JSON") == true -> "Archivo JSON inválido"
                     else -> "Error al importar archivo"
                 }
