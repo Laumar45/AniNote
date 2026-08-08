@@ -35,7 +35,8 @@ enum class SortOrder { ASC, DESC }
 data class DataState(
     val animes: List<AnimeEntity> = emptyList(),
     val query: String = "",
-    val sortOrder: SortOrder = SortOrder.ASC
+    val sortOrder: SortOrder = SortOrder.ASC,
+    val isInitialLoading: Boolean = true
 )
 
 data class UiState(
@@ -44,7 +45,8 @@ data class UiState(
     val sortOrder: SortOrder = SortOrder.ASC,
     val dialog: DialogState = DialogState(),
     val pendingDeleteIds: Set<Long> = emptySet(),
-    val pendingDeleteAnime: AnimeEntity? = null
+    val pendingDeleteAnime: AnimeEntity? = null,
+    val isInitialLoading: Boolean = true
 )
 
 sealed class UiEvent {
@@ -75,7 +77,8 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
         DataState(
             animes = animes.filter { it.nombre.contains(query, ignoreCase = true) },
             query = query,
-            sortOrder = sortOrder
+            sortOrder = sortOrder,
+            isInitialLoading = false
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DataState())
 
@@ -91,7 +94,8 @@ class AnimeViewModel(private val repository: AnimeRepository) : ViewModel() {
             sortOrder = data.sortOrder,
             dialog = dialog,
             pendingDeleteIds = pendingDeleteIds,
-            pendingDeleteAnime = pendingDeleteAnime
+            pendingDeleteAnime = pendingDeleteAnime,
+            isInitialLoading = data.isInitialLoading
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UiState())
 

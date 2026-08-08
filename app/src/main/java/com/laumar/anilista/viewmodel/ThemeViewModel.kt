@@ -14,10 +14,10 @@ class ThemeViewModel(context: Context) : ViewModel() {
     private val appContext = context.applicationContext
 
     val mode: StateFlow<String> = ThemePreferences.getMode(context)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.defaultMode)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.DEFAULT_MODE)
 
     val accent: StateFlow<String> = ThemePreferences.getAccent(context)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.defaultAccent)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.DEFAULT_ACCENT)
 
     fun setMode(mode: String) {
         viewModelScope.launch {

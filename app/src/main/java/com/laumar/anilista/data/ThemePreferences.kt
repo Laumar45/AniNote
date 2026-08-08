@@ -14,18 +14,18 @@ object ThemePreferences {
     private val MODE_KEY = stringPreferencesKey("mode")
     private val ACCENT_KEY = stringPreferencesKey("accent")
 
-    val defaultMode = "system"
-    val defaultAccent = "green"
+    const val DEFAULT_MODE = "system"
+    const val DEFAULT_ACCENT = "green"
 
     fun getMode(context: Context): Flow<String> {
         return context.dataStore.data.map { preferences ->
-            preferences[MODE_KEY] ?: defaultMode
+            preferences[MODE_KEY] ?: DEFAULT_MODE
         }
     }
 
     fun getAccent(context: Context): Flow<String> {
         return context.dataStore.data.map { preferences ->
-            preferences[ACCENT_KEY] ?: defaultAccent
+            preferences[ACCENT_KEY] ?: DEFAULT_ACCENT
         }
     }
 

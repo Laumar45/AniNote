@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.laumar.anilista.R
 import com.laumar.anilista.data.AnimeEntity
 import java.net.URLEncoder
+import androidx.core.net.toUri
 
 @Composable
 fun AnimeCard(
@@ -131,6 +131,6 @@ private fun copyToClipboard(context: Context, text: String) {
 
 private fun searchInGoogle(context: Context, query: String) {
     val encoded = URLEncoder.encode(query, "UTF-8")
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=$encoded"))
+    val intent = Intent(Intent.ACTION_VIEW, "https://www.google.com/search?q=$encoded".toUri())
     context.startActivity(intent)
 }
