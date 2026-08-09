@@ -1,5 +1,6 @@
 package com.laumar.anilista.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,6 +20,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.laumar.anilista.R
@@ -38,7 +41,9 @@ fun AnimeListScreen(
     themeViewModel: ThemeViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val dismissSearchFocus = rememberDismissSearchFocus()
     val snackbarHostState = remember { SnackbarHostState() }
+    var isSearchFocused by remember { mutableStateOf(false) }
     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
@@ -52,6 +57,10 @@ fun AnimeListScreen(
             showImportDialog = true
         }
     )
+
+    BackHandler(enabled = isSearchFocused) {
+        dismissSearchFocus()
+    }
 
     AnimeListOverlays(
         viewModel = viewModel,
@@ -90,18 +99,40 @@ fun AnimeListScreen(
             AnimeListTopBar(
                 sortOrder = uiState.sortOrder,
                 showMenu = showMenu,
-                onSortOrderChange = viewModel::onSortOrderChange,
-                onShowThemeSheet = { showThemeSheet = true },
-                onShowMenuChange = { showMenu = it },
-                onImport = fileActions.launchImport,
-                onExportTxt = fileActions.launchExportTxt,
-                onExportJson = fileActions.launchExportJson
+                onSortOrderChange = {
+                    dismissSearchFocus()
+                    viewModel.onSortOrderChange(it)
+                },
+                onShowThemeSheet = {
+                    dismissSearchFocus()
+                    showThemeSheet = true
+                },
+                onShowMenuChange = {
+                    dismissSearchFocus()
+                    showMenu = it
+                },
+                onImport = {
+                    dismissSearchFocus()
+                    fileActions.launchImport()
+                },
+                onExportTxt = {
+                    dismissSearchFocus()
+                    fileActions.launchExportTxt()
+                },
+                onExportJson = {
+                    dismissSearchFocus()
+                    fileActions.launchExportJson()
+                },
+                onDismissSearchFocus = dismissSearchFocus
             )
         },
         floatingActionButton = {
             AnimeListFab(
                 isEmptyList = !uiState.isInitialLoading && uiState.animes.isEmpty() && uiState.query.isBlank(),
-                onClick = viewModel::openAddDialog
+                onClick = {
+                    dismissSearchFocus()
+                    viewModel.openAddDialog()
+                }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -111,8 +142,22 @@ fun AnimeListScreen(
             contentPadding = padding,
             onQueryChange = viewModel::onQueryChange,
             onEdit = viewModel::openEditDialog,
-            onDelete = viewModel::requestDelete
+            onDelete = viewModel::requestDelete,
+            onSearchFocusChanged = { isSearchFocused = it },
+            onDismissSearchFocus = dismissSearchFocus
         )
+    }
+}
+
+@Composable
+private fun rememberDismissSearchFocus(): () -> Unit {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    return remember(focusManager, keyboardController) {
+        {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }
     }
 }
 

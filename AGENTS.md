@@ -8,7 +8,7 @@ Instrucciones para agentes de IA que trabajen en este repositorio.
 
 ## Cuando escribas código
 
-1. Escribí el código que se pide, siguiendo el `design-brief.md` y las convenciones del proyecto.
+1. Escribí el código que se pide, siguiendo el `design-brief.md` y `design-brief-v5.md` y las convenciones del proyecto.
 2. Al terminar, indicá en tu respuesta final:
    - **Resumen**: qué archivos creaste/modificaste y qué hiciste en cada uno.
    - **Indicaciones**: qué debe verificar el usuario al compilar/probar (dependencias nuevas, imports, cambios de config, pasos manuales, edge cases).
@@ -20,5 +20,5 @@ Instrucciones para agentes de IA que trabajen en este repositorio.
 
 - App Android nativa: Kotlin + Jetpack Compose + Material 3 + Room + DataStore.
 - Ejercicio de aprendizaje: el usuario escribe/entiende el código. La IA asiste, no reemplaza.
-- **`design-brief.md` es el documento más importante de contexto a la hora de implementar cualquier cosa nueva.** Es obligatorio leerlo antes de implementar y seguí su roadmap, estructura de carpetas y decisiones cerradas. Es la única fuente de verdad del proyecto.
+- **`design-brief.md` y `design-brief-v5.md` es el documento más importante de contexto a la hora de implementar cualquier cosa nueva.** Es obligatorio leerlo antes de implementar y seguí su roadmap, estructura de carpetas y decisiones cerradas. Es la única fuente de verdad del proyecto.
 - No agregues dependencias ni stacks que el brief no justifique.

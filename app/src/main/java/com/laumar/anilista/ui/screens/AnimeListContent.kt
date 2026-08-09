@@ -6,6 +6,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -28,9 +32,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.laumar.anilista.R
 import com.laumar.anilista.data.AnimeEntity
@@ -45,41 +54,80 @@ fun AnimeListContent(
     contentPadding: PaddingValues,
     onQueryChange: (String) -> Unit,
     onEdit: (AnimeEntity) -> Unit,
-    onDelete: (AnimeEntity) -> Unit
+    onDelete: (AnimeEntity) -> Unit,
+    onSearchFocusChanged: (Boolean) -> Unit,
+    onDismissSearchFocus: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(contentPadding)) {
-        AnimeSearchField(query = uiState.query, onQueryChange = onQueryChange)
-        when {
-            uiState.isInitialLoading -> InitialLoadingSkeleton()
-            uiState.animes.isEmpty() -> EmptyState(
-                isEmptyList = uiState.query.isBlank(),
-                searchQuery = uiState.query,
-                onClearSearch = { onQueryChange("") }
-            )
-            else -> AnimeList(
-                animes = uiState.animes,
-                sortOrder = uiState.sortOrder,
-                onEdit = onEdit,
-                onDelete = onDelete
-            )
+        AnimeSearchField(
+            query = uiState.query,
+            onQueryChange = onQueryChange,
+            onDismissSearchFocus = onDismissSearchFocus,
+            onFocusChanged = onSearchFocusChanged
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .dismissSearchOnPointerDown(onDismissSearchFocus)
+        ) {
+            when {
+                uiState.isInitialLoading -> InitialLoadingSkeleton()
+                uiState.animes.isEmpty() -> EmptyState(
+                    isEmptyList = uiState.query.isBlank(),
+                    searchQuery = uiState.query,
+                    onClearSearch = {
+                        onQueryChange("")
+                        onDismissSearchFocus()
+                    }
+                )
+                else -> AnimeList(
+                    animes = uiState.animes,
+                    sortOrder = uiState.sortOrder,
+                    onEdit = { anime ->
+                        onDismissSearchFocus()
+                        onEdit(anime)
+                    },
+                    onDelete = { anime ->
+                        onDismissSearchFocus()
+                        onDelete(anime)
+                    },
+                    onDismissSearchFocus = onDismissSearchFocus
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun AnimeSearchField(query: String, onQueryChange: (String) -> Unit) {
+private fun AnimeSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onDismissSearchFocus: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit
+) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .onFocusChanged { onFocusChanged(it.isFocused) },
         placeholder = { Text(stringResource(R.string.search_placeholder)) },
         leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.search_content_desc)) },
         trailingIcon = {
-            if (query.isNotEmpty()) IconButton(onClick = { onQueryChange("") }) {
+            if (query.isNotEmpty()) IconButton(onClick = {
+                onQueryChange("")
+                onDismissSearchFocus()
+            }) {
                 Icon(Icons.Default.Close, stringResource(R.string.search_clear_content_desc))
             }
         },
         singleLine = true,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(onDone = { onDismissSearchFocus() }),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outline
@@ -92,10 +140,22 @@ private fun AnimeList(
     animes: List<AnimeEntity>,
     sortOrder: SortOrder,
     onEdit: (AnimeEntity) -> Unit,
-    onDelete: (AnimeEntity) -> Unit
+    onDelete: (AnimeEntity) -> Unit,
+    onDismissSearchFocus: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            onDismissSearchFocus()
+        }
+    }
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .dismissSearchOnPointerDown(onDismissSearchFocus),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -105,11 +165,21 @@ private fun AnimeList(
                 anime = anime,
                 position = position,
                 onDelete = { onDelete(anime) },
-                modifier = Modifier.clickable { onEdit(anime) }
+                modifier = Modifier.clickable {
+                    onEdit(anime)
+                }
             )
         }
     }
 }
+
+fun Modifier.dismissSearchOnPointerDown(onDismissSearchFocus: () -> Unit): Modifier =
+    pointerInput(onDismissSearchFocus) {
+        awaitEachGesture {
+            awaitFirstDown(pass = PointerEventPass.Initial)
+            onDismissSearchFocus()
+        }
+    }
 
 @Composable
 private fun InitialLoadingSkeleton() {

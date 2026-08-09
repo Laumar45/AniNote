@@ -54,7 +54,7 @@
     <!-- Empty state -->
     <string name="empty_list_desc">Lista vacía. Tocá el botón agregar para crear un anime.</string>
     <string name="empty_list_title">Empieza agregando tu primer anime</string>
-    <string name="empty_list_hint">Tocá el botón + para crear uno, o importá tu lista desde un .txt</string>
+    <string name="empty_list_hint">Tocá el botón + para crear uno, o importá tu lista desde un .txt o un  .Json</string>
     <string name="empty_no_results_desc">Sin resultados para %1$s</string>
     <string name="empty_no_results_text">Ningún anime matchea &quot;%1$s&quot;</string>
     <string name="empty_clear_search">Limpiar búsqueda</string>

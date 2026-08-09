@@ -1,7 +1,7 @@
 # Design Brief — Anime List App
 
-> **Versión**: v3 (reensamblado tras iteración de diseño)
-> **Fecha**: 2026-07-31
+> **Versión**: v4 (actualizado tras auditoría de código)
+> **Fecha**: 2026-08-08
 > **Stack objetivo**: Kotlin · Jetpack Compose · Material 3 · Room · DataStore
 > **Modo de construcción**: código escencialmente escrito a mano. La IA se usa solo como apoyo y para consultas, no para generar implementación.
 
@@ -9,9 +9,9 @@
 
 ## 1. Resumen & principio rector
 
-App Android nativa para reemplazar una lista de animes que actualmente vive en un archivo de texto plano. El objetivo es mantener la simpleza del bloc de notas original, sumando las comodidades que un editor de texto no da bien: ordenar, buscar, editar entradas puntuales, marcar cuántas veces viste algo, y respaldar/restaurar la lista desde un `.txt`.
+App Android nativa para reemplazar una lista de animes que actualmente vive en un archivo de texto plano. El objetivo es sumar las comodidades que un editor de texto no da bien: ordenar, buscar, editar entradas puntuales, marcar cuántas veces viste algo, y respaldar/restaurar la lista desde un `.txt`.
 
-**Principio rector**: minimalismo funcional sobre complejidad visual. Cada pantalla debe sentirse tan simple de usar como escribir en el bloc de notas, pero con la comodidad de ordenar, buscar y editar sin reescribir todo a mano.
+**Principio rector**: cada pantalla debe ser simple de usar — intuitiva, sin pasos innecesarios, con acciones accesibles sin fricción. La comodidad de ordenar, buscar y editar sin reescribir todo a mano es el objetivo, no la restricción deFeatures.
 
 **Promesa de fondo**: todo el dato vive local. No hay backend, no hay cuentas, no hay llamadas API de red para datos de animes. La única "salida" hacia afuera es abrir el navegador para buscar en Google, o leer/escribir un `.txt` para importar/exportar. Esto no es un detalle técnico: es la promesa que sostiene varias decisiones de diseño (sin posters, sin sincronización, sin auth).
 
@@ -34,8 +34,8 @@ App Android nativa para reemplazar una lista de animes que actualmente vive en u
 **Lo que NO está en el stack** (y por qué):
 - **Retrofit / OkHttp**: no hay API
 - **Coil / Glide**: no hay imágenes remotas
-- **Hilt / Koin**: la app es chica, ViewModel se puede instanciar manual con un factory simple. Sumar DI para un solo grafo es over-engineering
-- **Navigation Compose**: una sola pantalla. Navegar entre rutas no aporta nada en MVP
+- **Hilt / Koin**: por ahora la app es chica y el ViewModel se instancia manual con un factory simple. Si crece el grafo de dependencias, se puede migrar a DI framework
+- **Navigation Compose**: por ahora una sola pantalla con estados. Si se agregan pantallas, se integra Navigation Compose
 
 Si en iteraciones futuras hace falta alguna de estas, se agrega con justificación, no por defecto.
 
@@ -128,6 +128,7 @@ De arriba hacia abajo, dentro de un `Scaffold`:
      - Implementación: `SingleChoiceSegmentedButtonRow` de M3 (2 botones segmentados)
      - Default al abrir la app = Ascendente — es el orden esperado después de import, y para entradas nuevas respeta la secuencia temporal
      - Sin ordenamiento alfabético de ningún tipo — solo cronológico por fecha de creación
+     - **Implementación**: sort se ejecuta a nivel Room SQL con dos queries separadas (`getAll()` con `ORDER BY createdAt ASC` y `getAllDesc()` con `ORDER BY createdAt DESC`). El ViewModel usa `flatMapLatest` para cambiar entre flows según el sort order seleccionado. Esto es más eficiente que ordenar en memoria.
    - Acción derecha 2: ícono de tema (abre bottom sheet — §4.3)
    - Acción derecha 3: menú overflow (tres puntos) con "Importar" / "Exportar" — §4.4
 
@@ -136,6 +137,7 @@ De arriba hacia abajo, dentro de un `Scaffold`:
    - `placeholder`: "Buscar anime"
    - Botón de "limpiar" (X) cuando hay texto
    - El indicador de foco usa el color `primary` (acento activo)
+   - **Estado de carga**: mientras `isInitialLoading = true`, se oculta la lista y se muestra un skeleton shimmer de 12 placeholder cards. Una vez que el Room Flow emite la primera lista real, el skeleton desaparece y se muestra la lista (o el empty state si está vacía).
 
 **Persistencia de estado UI a rotación**: `showThemeSheet`, `showMenu`, `showImportDialog` y `pendingImportIsJson` usan `rememberSaveable` (no `remember`) para sobrevivir a rotación de pantalla. El query de búsqueda vive en el ViewModel (`StateFlow`), así que ya persiste naturalmente.
 
@@ -249,7 +251,13 @@ data class AnimeEntity(
 )
 ```
 
-DAO expone queries como `Flow<List<AnimeEntity>>` para que la UI reaccione automáticamente a cambios (insert, update, delete).
+DAO expone queries como `Flow<List<AnimeEntity>>` para que la UI reaccione automáticamente a cambios (insert, update, delete). El ordenamiento se resuelve a nivel SQL, no en memoria, con dos queries separadas:
+- `getAll()` → `ORDER BY createdAt ASC` (más antiguos primero)
+- `getAllDesc()` → `ORDER BY createdAt DESC` (más recientes primero)
+
+Además, el DAO incluye:
+- `findByNameCaseInsensitive(nombre)` → compara con `LOWER(TRIM(nombre))` para la deduplicación en import-merge sin distinguir mayúsculas ni espacios extra
+- `deleteAll()` e `insertAll(...)` → operaciones batch para el import con "Reemplazar"
 
 **DataStore — preferencias de tema**:
 
@@ -274,6 +282,22 @@ Ambas fuentes se leen desde el `ViewModel` con `.stateIn(viewModelScope, ...)` p
 - No hay que reescribir la DB al reordenar.
 
 **Comportamiento durante búsqueda**: el número se recalcula. Si Konosuba es "1." y se busca "isekai", isekai nonbiri aparece como "1." (primer resultado), no "2."
+
+**Implementación del sort a nivel SQL**: el orden no se aplica en memoria. El ViewModel usa `flatMapLatest` para cambiar entre los flows de `getAll()` (ASC) y `getAllDesc()` (DESC) según el sort order seleccionado. Room filtra y ordena antes de emitir al Flow, evitando cargar toda la lista en memoria para ordenarla.
+
+### 5.x Estado de carga inicial
+
+**Decisión documentada**: la UI distingue entre "lista cargando" y "lista vacía" con un flag `isInitialLoading` en el `UiState`.
+
+**Problema que resuelve**: Room expone `Flow<List<T>>` que emite vacío mientras carga. Sin un flag explícito, la UI muestra el empty state ("Empezá agregando...") durante el primer frame, parpadeando antes de mostrar datos reales.
+
+**Implementación**:
+- `DataState.isInitialLoading = true` como valor inicial
+- Se pone en `false` solo después de la primera emisión real del Room Flow
+- Mientras `isInitialLoading = true`, se muestra un skeleton shimmer de 12 placeholder cards que ocupa toda el área de la lista
+- El skeleton usa `InfiniteTransition` con alpha pulsante para feedback visual de carga
+
+**Diferencia con empty state**: `isInitialLoading = true` → skeleton. `isInitialLoading = false` y lista vacía → empty state ("Empezá agregando..."). Son estados mutuamente excluyentes.
 
 ### 5.3 vecesVisto — independiente del nombre
 
@@ -471,7 +495,7 @@ Después, diálogo de confirmación con dos opciones:
 
 La normalización `trim().lowercase()` se aplica **solo** para la comparación; el nombre guardado en la DB es el original del archivo.
 
-**No normalización de acentos**: 'Pokémon' y 'Pokemon' se consideran distintos en la comparación. Para normalizar se necesitaría `java.text.Normalizer.normalize(s, NFD).replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")` antes de la comparación. No es objetivo del MVP — el usuario lo maneja manualmente si le importa (casi nunca lo es, en una lista personal).
+**No normalización de acentos**: 'Pokémon' y 'Pokemon' se consideran distintos en la comparación. Para normalizar se necesitaría `java.text.Normalizer.normalize(s, NFD).replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")` antes de la comparación. Se puede implementar si el usuario lo requiere.
 
 #### Post-importación
 
@@ -491,7 +515,7 @@ El reporte de líneas ignoradas es **información honesta**: si el usuario impor
 
 **En .json**: el round-trip es **mucho más cercano a byte-idéntico** — el schema es estructurado, los campos son explícitos, y `prettyPrint = true` da un formato estable. Sigue sin ser byte-idéntico estricto (el orden de claves en JSON no está garantizado por `@Serializable`, el pretty-printing puede tener variaciones), pero un diff va a mostrar solo cambios reales.
 
-Se documenta porque en iteraciones futuras podría usarse para comparar backups automáticos. Si en algún momento se quiere byte-equivalencia estricta en JSON, fijar `prettyPrint = false` y un orden de campos explícito (con un encoder custom o similar) — pero **no es objetivo del MVP**, la equivalencia lógica es suficiente.
+Se documenta porque en iteraciones futuras podría usarse para comparar backups automáticos. Si en algún momento se quiere byte-equivalencia estricta en JSON, fijar `prettyPrint = false` y un orden de campos explícito (con un encoder custom o similar).
 
 #### Edge cases documentados
 
@@ -556,29 +580,26 @@ Se documenta porque en iteraciones futuras podría usarse para comparar backups 
 
 ---
 
-## 7. Fuera de alcance (MVP)
+## 7.  Fuera de alcance (no implementado)
 
 **Diseño / contenido**:
 - Imágenes o posters de los animes
 - Categorías, etiquetas, o cualquier agrupamiento más allá de `vecesVisto`
-- Sincronización en la nube
 - Cuentas de usuario
-- Animaciones de transición elaboradas (LazyColumn usa las default)
 
 **Funcionalidad**:
-- Drag-to-reorder manual
 - Multi-select / bulk delete
 - Historial de cambios o papelera de reciclaje (más allá del undo del snackbar)
 - Detección de duplicados al agregar manualmente (el dedup aplica solo en import-merge)
 - Compartir un anime individual (solo se exporta la lista completa)
 - Estadísticas ("viste 47 animes, 8 más de una vez")
-- **Feedback háptico** en acciones destructivas (borrar, undo). Candidato para iteraciones futuras, no MVP. Solo se justifica si se introduce swipe-to-delete u otros gestos donde la confirmación táctil aporta valor real.
+- **Feedback háptico** en acciones destructivas (borrar, undo). Se justifica especialmente si se introduce swipe-to-delete u otros gestos donde la confirmación táctil aporta valor real.
 
 **Plataforma**:
 - Layout dedicado para tablet
 - Widget de pantalla de inicio
 - Notificaciones
-- Soporte de Android antiguo (target min SDK 26 / Android 8.0 — amplia mayoría del mercado y simplifica APIs)
+- Soporte de Android antiguo (target min SDK 28 / Android 9.0 — amplia mayoría del mercado y simplifica APIs)
 
 **Formatos de import/export adicionales**:
 - CSV (con comillas y escapes)
@@ -588,7 +609,7 @@ Se documenta porque en iteraciones futuras podría usarse para comparar backups 
 
 El binario .txt (humano, migración) + .json (machine, backup) cubre los dos casos de uso reales. Sumar más formatos es feature creep sin valor agregado claro.
 
-Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar la app.
+Esto cierra preguntas previsibles y mantiene el scope chico. Pero la lista está abierta a evolución.
 
 ---
 
@@ -599,7 +620,7 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 | 1 | Stack: Kotlin + Compose + M3 + Room + DataStore | Moderno, idiomático, base para crecer |
 | 2 | Theming de dos capas (modo + acento) | Separar "iluminación" de "marca" da flexibilidad sin acoplar |
 | 3 | No `dynamicColor` (wallpaper) | El acento es elección del usuario, no inferida del sistema |
-| 4 | Fuente del sistema (Roboto) | Una app así no justifica peso ni setup de fuente custom |
+| 4 | Fuente del sistema (Roboto) | Se puede cambiar a una fuente custom si se desea personalización visual |
 | 5 | Sin DI framework (Hilt/Koin) | Un solo grafo, ViewModel con factory simple alcanza |
 | 6 | Sin Navigation Compose | Una sola pantalla con estados, no hay rutas |
 | 7 | Número de lista = posición visual (`index + 1`), no el `id` de Room | El número refleja dónde está el item ahora, no cuándo se creó. Cambia al borrar, ordenar o filtrar |
@@ -620,53 +641,60 @@ Esto cierra preguntas previsibles y mantiene el scope chico para poder terminar 
 | 22 | Strip de newlines en nombres al guardar | Evita entradas rotas si el usuario pega texto multilínea desde un documento |
 | 23 | `Modifier.semantics` en componentes clave | Accesibilidad básica: TalkBack lee posición + nombre + vecesVisto en tarjetas, valor en stepper, estados vacíos descriptivos |
 | 24 | `AniListaApp` (Application) para init temprano de Room | Mueve el cold start de Room detrás del splash del sistema, no detrás del primer render de MainActivity |
+| 25 | Sort a nivel Room SQL (`ORDER BY createdAt ASC/DESC`), no en memoria | Más eficiente: Room filtra y ordena antes de emitir al Flow. `flatMapLatest` en ViewModel cambia entre queries según sort order. Evita cargar toda la lista en memoria para ordenar |
+| 26 | Modularización de pantalla en 4 archivos (TopBar, Content, FileActions, Screen) | Separa responsabilidades sin introduce Navigation Compose. Cada archivo tiene un concern claro. Facilita testing y mantenimiento |
+| 27 | minSdk = 28 (Android 9) | Cobertura suficiente (>95% del mercado activo). Permite usar APIs sin compat shims innecesarios |
+| 28 | Loading skeleton con shimmer para estado de carga inicial | Distingue "cargando" de "vacío" explícitamente. Evita el parpadeo del empty state en el primer frame |
 
 ---
 
 ## 9. Estructura de carpetas
 
 ```
-app/src/main/java/tupackage/
+app/src/main/java/com/laumar/anilista/
 │
 ├── AniListaApp.kt                → Application: init temprano de Room DB en onCreate()
 │
 ├── data/
 │   ├── AnimeEntity.kt            → @Entity con id, nombre, vecesVisto, createdAt
-│   ├── AnimeDao.kt               → queries: getAll() (Flow), insert, update, delete, findByName
-│   ├── AppDatabase.kt            → @Database, singleton. `fallbackToDestructiveMigration()` aceptable solo en debug builds; en release, migración explícita. Para MVP sin schema migrations.
+│   ├── AnimeDao.kt               → queries: getAll() (ASC/DESC), insert, update, delete, findByNameCaseInsensitive, deleteAll, insertAll
+│   ├── AppDatabase.kt            → @Database, singleton. Sin fallbackToDestructiveMigration en release. Versión 1, sin schema migrations
 │   └── ThemePreferences.kt       → DataStore: modo + acento, expuesto como Flow
 │
 ├── repository/
 │   └── AnimeRepository.kt        → intermediario entre DAO y ViewModel
 │
 ├── viewmodel/
-│   ├── AnimeViewModel.kt         → estado de la lista, query, orden, eventos one-shot
+│   ├── AnimeViewModel.kt         → estado de la lista, query, orden (flatMapLatest con sort SQL), eventos one-shot via Channel
 │   └── ThemeViewModel.kt         → estado del tema, lee/escribe DataStore
 │
 ├── ui/
 │   ├── theme/
 │   │   ├── Color.kt              → tokens por acento (4 paletas x 2 modos = 8 ColorSchemes)
 │   │   ├── Theme.kt              → composición: toma modo + acento, devuelve MaterialTheme
-│   │   └── Type.kt               → Typography de M3 (titleMedium, labelSmall, etc.)
+│   │   └── Type.kt               → Typography de M3 (titleLarge, labelSmall, etc.)
 │   │
 │   ├── screens/
-│   │   └── AnimeListScreen.kt    → pantalla principal, orquesta todo
+│   │   ├── AnimeListScreen.kt    → orquestador principal (Scaffold, eventos, overlays)
+│   │   ├── AnimeListTopBar.kt    → TopBar extraído: SortToggle + ícono tema + menú overflow
+│   │   ├── AnimeListContent.kt   → Search field + LazyColumn + empty states + loading skeleton
+│   │   └── AnimeListFileActions.kt → Launchers SAF para import/export (extraído del screen monolítico)
 │   │
 │   └── components/
-│       ├── AnimeCard.kt          → tarjeta individual (con semantics)
-│       ├── AddEditDialog.kt      → diálogo agregar/editar
+│       ├── AnimeCard.kt          → tarjeta individual (Row con background, no Card M3) + semantics
+│       ├── AddEditDialog.kt      → diálogo agregar/editar con VecesVistoStepper
 │       ├── DeleteConfirmDialog.kt→ diálogo de confirmación de borrado
 │       ├── ImportConfirmDialog.kt→ diálogo de confirmación de import (Reemplazar / Combinar)
 │       ├── VecesVistoStepper.kt  → stepper +/- para veces visto (con semantics)
-│       ├── ThemeBottomSheet.kt   → selector de modo + acento
-│       ├── SortToggle.kt         → control de orden ascendente/descendente por `createdAt` (TopBar)
+│       ├── ThemeBottomSheet.kt   → selector de modo (SegmentedButton) + acento (círculos de color)
+│       ├── SortToggle.kt         → control de orden ASC/DESC por `createdAt` (TopBar)
 │       └── EmptyState.kt         → estado vacío (lista vacía o búsqueda sin resultados, con semantics)
 │
 ├── utils/
 │   ├── ImportExportUtils.kt      → parseTxtFile(), formatTxtLine(), formatTxtExport()
 │   └── JsonImportExport.kt       → parseJson(), serializeJson(), AnimeJson, AnimeListJson (@Serializable)
 │
-└── MainActivity.kt               → punto de entrada, hostea el AnimeListScreen
+└── MainActivity.kt               → punto de entrada, wiring de ViewModels con factories, hostea el AnimeListScreen
 ```
 
 ---

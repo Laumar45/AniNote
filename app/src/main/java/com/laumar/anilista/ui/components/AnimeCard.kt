@@ -56,7 +56,10 @@ fun AnimeCard(
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .background(
+                if (anime.vecesVisto > 1) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
+                else MaterialTheme.colorScheme.surface
+            )
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .semantics { contentDescription = itemDesc },
         verticalAlignment = Alignment.CenterVertically
