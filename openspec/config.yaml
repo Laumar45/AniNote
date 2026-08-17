@@ -2,7 +2,7 @@
 schema: spec-driven
 
 context: |
-  AniLista: native Android anime list app (learning exercise; AI assists, user writes code).
+  AniNote: native Android anime list app (learning exercise; AI assists, user writes code).
   Kotlin 2.1.0 + Jetpack Compose + Material 3 (BOM 2024.12.01) + Room 2.6.1 (KSP) + DataStore Preferences 1.1.1.
   Single :app module, minSdk 28 / targetSdk 35, Java 11. No DI framework, no Navigation Compose.
   Architecture: manual wiring in MainActivity, Repository over Room DAO, ViewModels with StateFlow/SharedFlow,

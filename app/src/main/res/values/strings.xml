@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">AniLista</string>
+    <string name="app_name">AniNote</string>
 
     <!-- Top bar & menu -->
     <string name="title_my_list">Mi lista</string>

@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.AniLista" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.AniNote" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Tema para el Splash Screen -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- Fondo del splash -->
+        <item name="windowSplashScreenBackground">#C1E9CF</item>
+        <!-- Icono central (puede ser un drawable) -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <!-- Tiempo que se muestra (opcional, solo para Android 12+) -->
+        <item name="windowSplashScreenAnimationDuration">200</item>
+        <!-- Tema al que cambiará después de cargar -->
+        <item name="postSplashScreenTheme">@style/Theme.AniNote</item>
+    </style>
 </resources>

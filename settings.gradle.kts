@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AniLista"
+rootProject.name = "AniNote"
 include(":app")

@@ -2,7 +2,7 @@
 
 ## Intent
 
-AniLista is feature-complete but carries 12 bugs/deviations: a critical URL-encoding bug, broken sort semantics, a data-integrity dedup violation, recomposition/performance issues, and hardcoded UI strings. Fix them without changing architecture or adding features, restoring design-brief compliance (§3.1, §4.1, §5.4, §18).
+AniNote is feature-complete but carries 12 bugs/deviations: a critical URL-encoding bug, broken sort semantics, a data-integrity dedup violation, recomposition/performance issues, and hardcoded UI strings. Fix them without changing architecture or adding features, restoring design-brief compliance (§3.1, §4.1, §5.4, §18).
 
 ## Scope
 

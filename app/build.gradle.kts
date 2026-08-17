@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.laumar.anilista"
+    namespace = "com.laumar.aninote"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.laumar.anilista"
+        applicationId = "com.laumar.aninote"
         minSdk = 28
         targetSdk = 35
         versionCode = 1
@@ -52,7 +52,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
-    
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

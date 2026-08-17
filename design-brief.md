@@ -640,7 +640,7 @@ Esto cierra preguntas previsibles y mantiene el scope chico. Pero la lista está
 | 21 | `rememberSaveable` para estados UI transitorios (sheet, menú, dialogs) | Sobreviven rotación de pantalla. El query vive en ViewModel, no necesita `rememberSaveable` |
 | 22 | Strip de newlines en nombres al guardar | Evita entradas rotas si el usuario pega texto multilínea desde un documento |
 | 23 | `Modifier.semantics` en componentes clave | Accesibilidad básica: TalkBack lee posición + nombre + vecesVisto en tarjetas, valor en stepper, estados vacíos descriptivos |
-| 24 | `AniListaApp` (Application) para init temprano de Room | Mueve el cold start de Room detrás del splash del sistema, no detrás del primer render de MainActivity |
+| 24 | `AniNoteApp` (Application) para init temprano de Room | Mueve el cold start de Room detrás del splash del sistema, no detrás del primer render de MainActivity |
 | 25 | Sort a nivel Room SQL (`ORDER BY createdAt ASC/DESC`), no en memoria | Más eficiente: Room filtra y ordena antes de emitir al Flow. `flatMapLatest` en ViewModel cambia entre queries según sort order. Evita cargar toda la lista en memoria para ordenar |
 | 26 | Modularización de pantalla en 4 archivos (TopBar, Content, FileActions, Screen) | Separa responsabilidades sin introduce Navigation Compose. Cada archivo tiene un concern claro. Facilita testing y mantenimiento |
 | 27 | minSdk = 28 (Android 9) | Cobertura suficiente (>95% del mercado activo). Permite usar APIs sin compat shims innecesarios |
@@ -651,9 +651,9 @@ Esto cierra preguntas previsibles y mantiene el scope chico. Pero la lista está
 ## 9. Estructura de carpetas
 
 ```
-app/src/main/java/com/laumar/anilista/
+app/src/main/java/com/laumar/aninote/
 │
-├── AniListaApp.kt                → Application: init temprano de Room DB en onCreate()
+├── AniNoteApp.kt                → Application: init temprano de Room DB en onCreate()
 │
 ├── data/
 │   ├── AnimeEntity.kt            → @Entity con id, nombre, vecesVisto, createdAt

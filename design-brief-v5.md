@@ -1,204 +1,165 @@
 # Design Brief — Anime List App
 
-**Versión:** v5 (evolución post-MVP)
-**Fecha:** 2026-08-09
-**Base:** v4 (2026-08-08)
-**Stack objetivo:** Kotlin · Jetpack Compose · Material 3 · Room · DataStore
-**Modo de construcción:** código esencialmente escrito a mano. La IA se usa solo como apoyo y para consultas, no para generar implementación.
+**Versión:** v5.1 (especificación definitiva de evolución post-MVP)  
+**Fecha:** 2026-08-10  
+**Estado:** Autocontenido y listo para implementación por fases  
+**Stack objetivo:** Kotlin · Jetpack Compose · Material 3 · Room · DataStore  
+**Modo de construcción:** Código escrito esencialmente a mano. La IA actúa como asistente de arquitectura y verificación, respetando el desarrollo especificado.
 
 ---
 
 ## 1. Resumen & principio rector
 
-La app ya existe y funciona. v5 no es un rewrite: es la etapa de evolución. El objetivo ya no es "llegar a un MVP con scope mínimo", sino **lograr que lo que ya funciona se sienta cómodo, claro y pulido, sin convertir la app en algo extravagante**.
+La aplicación **AniNote** ya existe y se encuentra en estado funcional MVP (v4). **v5 no es una reescritura desde cero**: es una especificación de **evolución e ingeniería de calidad**. El objetivo deja de ser "llegar a un scope mínimo" para enfocarse en **lograr que la aplicación viva se sienta sólida, clara, pulida y accesible, resolviendo inconsistencias de UX y rendimiento sin distorsionar su filosofía minimalista**.
 
-**Nuevo principio rector: funcionalidad clara + pulido visual + robustez de comportamiento, sin features extravagantes.**
+**Principio rector de v5: Funcionalidad clara + pulido visual + robustez reactiva + arquitectura limpia, sin características estrafalarias.**
 
-- No se agrega nada que abra la puerta a un gestor de colecciones (sin posters, sin categorías, sin cloud, sin cuentas).
-- Sí se agrega: orientación en listas largas, feedback de acciones, animaciones sutiles y features simples que usan datos que ya existen.
+* **No se agregan funcionalidades complejas**: Sin imágenes ni posters remotos, sin categorías/etiquetas complejas, sin almacenamiento en la nube, sin cuentas de usuario.
+* **Sí se agregan mejoras de alta calidad**: Numeración canónica real, orientación clara en listas largas, feedback visual sutil, canalizaciones reactivas aisladas (`combine` optimizado), importación/exportación transaccional resiliente y localización completa en `strings.xml`.
 
-**Promesa de fondo (no cambia):** todo el dato vive local. No hay backend, no hay cuentas, no hay llamadas API de red para datos de animes. La única "salida" hacia afuera es abrir el navegador para buscar en Google, o leer/escribir archivos para importar/exportar.
-
-**Aclaración de orden (central en v5):**
-
-- No existe ni existirá orden alfabético (A-Z / Z-A no representan el orden de alta y no aportan valor).
-- El orden relevante es por alta (cronológico / de inserción).
-- Con una lista de ~200 animes, el caso de uso principal es **ver rápido lo último agregado**.
-- En vista descendente deben verse los números reales de la lista (`194, 193, 192…`), no `1, 2, 3`.
+**Promesa de fondo (inmutable):** Todo dato vive de forma 100% local en el dispositivo. No hay backend, no hay autenticación ni consumo de APIs de red para datos de anime. Las únicas salidas externas son abrir el navegador para búsquedas en Google y leer/escribir archivos `.txt` / `.json` para respaldo e importación.
 
 ---
 
-## 2. Qué cambia respecto a v4
+## 2. Matriz delta: Cambios de v4 a v5
 
-| Área | v4 | v5 | Razón |
+| Área | Estado en v4 (MVP actual) | Especificación v5 (Evolución) | Razón técnica / UX |
 |---|---|---|---|
-| Principio | Minimalismo estricto | Minimalismo con pulido | La app ya está hecha; ahora el objetivo es que se sienta bien |
-| Default de orden | Ascendente | Descendente ("Recientes") | El caso principal es ver lo último sin scrollear |
-| Numeración | Posición visual de la vista actual (`index + 1`) | Posición canónica de la lista ascendente | En descendente querés ver `N…1`, y en búsqueda el número real |
-| Sort | Dos queries SQL + `flatMapLatest` | Query canónica única + derivación en memoria | La numeración canónica exige una sola fuente; a ~200 items el costo es nulo |
-| Persistencia de orden | No se persistía | Se persiste en DataStore | Comodidad sin costo |
-| Contador | No existe | Visible (total y resultados) | Orientación en listas largas |
-| Feedback | Básico | Scroll inteligente + highlight + animaciones sutiles | La app debe explicar el cambio |
-| Import | Snackbar simple | `ImportResult` rico + diálogo con resumen | Transparencia en operaciones sensibles |
-| Export `.txt` | Strip de sufijo `xN` siempre | No reescribe nombres legítimos | No mutar texto del usuario |
-| Pending delete | Sin política explícita | Reglas claras | Coherencia entre estado visual y DB |
-| Animaciones | Fuera de alcance | Sutiles y funcionales (lista cerrada) | Pulido sin extravagancia |
+| **Estrategia Docs** | Documentos divididos con referencias cruzadas | Especificación v5 100% autocontenida | Elimina la desincronización de especificaciones (*Split-Brain Spec*) |
+| **Default de Orden** | Ascendente (`createdAt` ASC) | Descendente ("Recientes" primero) | El caso de uso principal con ~200 items es revisar lo último agregado |
+| **Numeración Visual** | Posición en pantalla (`index + 1`) | Posición canónica de la lista ascendente | En vista descendente se busca ver `N…1`, y las búsquedas deben mostrar el número real |
+| **Query de DB** | Múltiples queries (`getAll` / `getAllDesc`) | Query canónica única (`createdAt ASC, id ASC`) | Garantiza la fuente única de verdad histórica; elimina empates por milisegundos idénticos |
+| **Pipeline Reactivo** | Meclaba estados de UI y datos en 1 solo `combine` | Pipeline de datos aislado de estados efímeros de UI | Evita filtrar/ordenar la lista cuando se abre un diálogo o se escribe en un `TextField` |
+| **Persistencia Orden** | No se persistía | Persistido en DataStore (`SORT_ORDER_KEY`) | Mantiene el modo de lectura elegido por el usuario entre sesiones |
+| **Importación Batch** | `insertAll` con timestamps idénticos | Timestamps secuenciales (`base + index`) + `@Transaction` | Preserva el orden exacto del archivo importado y garantiza atomicidad en replace |
+| **Deduplicación** | Sensible a mayúsculas/minúsculas | Case-insensitive con `trim().lowercase()` | Evita duplicar entradas como "Naruto" y "naruto" al importar |
+| **Exportación `.txt`** | Strip forzado del sufijo `xN` | No destructivo (`formatLine` condicional) | No muta texto del usuario; reserva el respaldo exacto para `.json` |
+| **Orientación UI** | Sin indicadores de cantidad | Subtítulo con contador (Total / Resultados) | Proporciona contexto inmediato en listas largas o filtradas |
+| **Localización** | Textos en español hardcodeados en UI | 100% extraído a `strings.xml` | Buenas prácticas de Android, facilita mantenibilidad y testing |
 
 ---
 
-## 3. Stack técnico
+## 3. Stack técnico & restricciones de entorno
 
-Se hereda v4 sin cambios: Kotlin, Compose, M3, Room, DataStore, Coroutines/Flow, single screen con estados. Sin Hilt/Koin, sin Navigation Compose, sin Retrofit/OkHttp, sin Coil/Glide. Si en el futuro se suma algo, se justifica acá, no "porque sí".
+Se mantiene la pila tecnológica base con refinamientos de arquitectura:
 
-| Elemento | Decisión v5 | Razón |
-|---|---|---|
-| `material-color-utilities` | Recomendado (optativo en esta etapa) | Genera tokens armónicos con contraste correcto para 4 acentos × 2 modos, con semilla explícita. **No** es dynamic color del wallpaper |
-| Lottie / libs de animación | No | Con Compose + M3 alcanza para la lista cerrada de animaciones. Sumar una librería para 4 animaciones es extravagante |
+* **Lenguaje:** Kotlin 1.9+ / 2.0+
+* **UI:** Jetpack Compose (Toolkit declarativo actual)
+* **Sistema de Diseño:** Material 3 (Tokens, capas de color, tipografía M3, animaciones)
+* **Persistencia Principal:** Room Database (SQLite tipado con queries reactivas vía `Flow`)
+* **Preferencias:** DataStore Preferences (Modo de iluminación, acento de color y orden persistido)
+* **Asincronía & Reactividad:** Kotlin Coroutines + Flow (`StateFlow`, `SharedFlow`, `combine`)
+* **Serialización:** `kotlinx.serialization` (Serializador Kotlin-first para backups JSON)
 
----
-
-## 4. Identidad visual
-
-### 4.1 Sistema de temas — dos capas independientes
-
-Se hereda v4: capa de modo (claro / oscuro / sistema) y capa de acento (verde, naranja, azul, morado). Decisión cerrada heredada: **no usar `dynamicColor`**; el acento es elección explícita del usuario.
-
-**Agregado v5:** validar contraste de los 8 `ColorScheme` (chips activos, texto sobre `primaryContainer`, tinte de card en luz solar). Si mantenerlos a mano se vuelve molesto, migrar a `material-color-utilities` con semilla explícita por acento. Empezar manual ya no es obligatorio: la app existe, el objetivo ahora es calidad visual.
-
-### 4.2 Tipografía
-
-Se hereda v4 (fuente del sistema, jerarquía M3, número antes del nombre como firma visual).
-
-**Agregado v5:** el contador del TopBar (§5.1) usa `bodySmall` / `labelMedium` en `onSurfaceVariant`. No compite con el título.
-
-### 4.3 Forma y espaciado
-
-Se hereda v4 sin cambios (12dp en tarjetas, elevación mínima, 8dp entre cards, 16dp de padding, 56dp de altura mínima).
-
-### 4.4 Motion (nuevo)
-
-**Principio: las animaciones explican el cambio, no lo decoran.**
-
-Duraciones sugeridas:
-
-| Tipo | Duración |
-|---|---|
-| Micro (ícono clear, chips) | 120–200 ms |
-| Cambio de estado (empty states, contador) | 200–300 ms |
-| Highlight de item nuevo | 1000–1200 ms |
-| Scroll programático | default de `animateScrollToItem` |
-| Segmented buttons, sheets, snackbars | lo que trae M3 |
-
-**Lista cerrada de lo que SÍ se anima:**
-
-| Elemento | Animación | Implementación |
-|---|---|---|
-| Empty states | fade + scale suave | `AnimatedVisibility` |
-| Botón limpiar búsqueda | fade/scale in-out | `AnimatedVisibility` |
-| Contador del TopBar | crossfade | `Crossfade` |
-| Cambio de orden | scroll al inicio | `listState.animateScrollToItem(0)` |
-| Item recién agregado | fondo que se desvanece | `animateColorAsState` + `highlightedAnimeId` |
-| Aparición de chips de filtro | fade + scale | `AnimatedVisibility` |
-| Movimientos dentro de LazyColumn | solo reposicionamiento | `Modifier.animateItem()` si la versión de Compose lo soporta |
-
-**Lista cerrada de lo que NO se anima:**
-
-- Paleta de colores al cambiar tema (sigue siendo instantáneo, como v4).
-- Texto mientras se escribe en búsqueda.
-- Entrada/salida elaborada de items individuales en LazyColumn.
-- Lottie, parallax, shared element transitions, sonido.
-- Haptics (siguen fuera de alcance, como en v4).
+**Restricciones explícitas de entorno:**
+* **Sin DI Frameworks (Hilt/Koin):** El grafo de dependencias se mantiene liviano mediante instanciación en la clase `Application` (`AniNoteApp`) y ViewModel Factories simples.
+* **Sin Navigation Compose:** La aplicación se mantiene en una sola pantalla con estados bien delimitados (`AnimeListScreen`).
+* **Ejecución de Pruebas:** Las pruebas unitarias e instrumentadas se ejecutan manualmente desde Android Studio (JUnit 4 + AndroidX Test).
 
 ---
 
-## 5. Layout por pantalla
+## 4. Identidad visual & Motion system
 
-### 5.1 Pantalla principal
+### 4.1 Sistema de temas (Dos capas independientes)
 
-Dentro del `Scaffold`, de arriba hacia abajo:
+1. **Capa 1 — Modo de iluminación (Claro / Oscuro / Sistema):**
+   * Controla superficies, fondos y jerarquía de contraste de texto.
+   * `background`: `#FAFAF9` (Claro) / `#121212` (Oscuro).
+   * `surface`: `#FFFFFF` (Claro) / `#1E1E1E` (Oscuro).
+   * `surfaceVariant`: `#F0F0EE` (Claro) / `#262626` (Oscuro).
 
-**Top bar (`TopAppBar`)**
+2. **Capa 2 — Color de acento de marca:**
+   * El usuario elige explícitamente entre 4 acentos: Verde (`#4CAF50`), Naranja (`#FF7A45`), Azul (`#4B7BE5`), Morado (`#8B6FE0`), Rojo (`#E53935`).
+   * **Decisión cerrada:** No usar `dynamicColor` (Material You basado en wallpaper). El acento es elección explícita del usuario.
+   * El acento aplica a: FAB, número de lista, chips activos e indicador de foco en búsqueda.
 
-- Título: "Mi lista".
-- **Subtítulo contador (nuevo):**
-  - Sin búsqueda ni filtro: `194 animes`
-  - Con búsqueda y/o filtro: `12 de 194`
-  - Cambia con `Crossfade`.
-- Acción 1: `SortToggle` con 2 estados y **nuevos labels**:
-  - **"Recientes"** — descendente (`N → 1`). **Default.**
-  - **"Antiguos"** — ascendente (`1 → N`).
-  - `contentDescription`: "Más recientes primero" / "Más antiguos primero".
-  - El orden elegido **se persiste** en DataStore (§6.1).
-  - Al cambiar: `animateScrollToItem(0)`.
-  - Sin orden alfabético. Decisión cerrada.
-- Acción 2: ícono de tema (hereda v4).
-- Acción 3: menú overflow (hereda v4, con nombres de archivo fechados, §5.4).
+### 4.2 Sistema de animación (Motion System)
 
-**Barra de búsqueda**
+**Principio:** Las animaciones explican los cambios de estado, jamás decoran sin propósito.
 
-- Hereda v4 (persistente, placeholder "Buscar anime", foco con `primary`).
-- Botón limpiar (X) con `AnimatedVisibility`.
-- El contador de resultados no vive acá: vive en el subtítulo del TopBar.
-
-**Fila de filtro (nuevo)**
-
-- Dos `FilterChip` debajo de la búsqueda: `Todos` y `x2+`.
-- `x2+` filtra por `vecesVisto > 1`.
-- No se persiste: es exploración temporal de la sesión. El orden sí se persiste porque es un modo de lectura global.
-- Aparece solo si la lista tiene al menos un item.
-
-**Lista (`LazyColumn`)**
-
-- Cada item es una `AnimeCard` con **número canónico** (§6.2). La UI **no** calcula `index + 1`: lee `ui.numero`.
-- `items(items, key = { it.id })` — nunca índice como key.
-- Padding inferior 88dp (hereda).
-- Highlight de item recién agregado (§6.6).
-
-**FAB** — hereda v4 (estándar con items, `ExtendedFloatingActionButton` con lista vacía).
-
-### 5.2 Diálogo agregar / editar
-
-Hereda v4 sin cambios estructurales (nombre + veces visto, validaciones, strip de newlines).
-
-**Agregado v5:** si el diálogo se abre desde el chip `xN` (§6.3), el foco inicial va al campo "Veces visto". Si resulta costoso, abrir el diálogo sin foco especial es aceptable; el foco es un nice-to-have documentado.
-
-### 5.3 Bottom sheet de tema
-
-Hereda v4 sin cambios (modo + acento, previsualización en vivo, sin botón guardar).
-
-### 5.4 Menú overflow (Import / Export)
-
-Hereda v4 (Importar, Exportar .txt, Exportar .json; cierre del sheet antes de lanzar SAF).
-
-**Agregado v5:** nombres sugeridos fechados:
-
-- `anime_list_2026-08-09.txt`
-- `anime_list_2026-08-09.json`
-
-Mejora identificación de backups sin agregar complejidad.
-
-### 5.5 Estados vacíos
-
-Se heredan los dos de v4 (lista vacía / búsqueda sin resultados) y se agregan dos:
-
-- **Filtro `x2+` sin items:** "Ningún anime visto más de una vez".
-- **Búsqueda + filtro sin resultados:** `Ningún resultado para "{query}" entre los vistos más de una vez` + botón "Limpiar búsqueda".
-
-Todos con `AnimatedVisibility` (fade + scale) en entrada/salida.
-
-### 5.6 Estado de carga inicial
-
-Hereda v4 (`isInitialLoading` + skeleton shimmer de 12 cards).
-
-**Cláusula v5:** si en device real el skeleton se siente excesivo para una DB local que responde en milisegundos, es válido simplificarlo a un `CircularProgressIndicator` breve o a nada. El flag `isInitialLoading` se mantiene igual para evitar el parpadeo del empty state.
+* **Animaciones permitidas:**
+  * Transición suave en `EmptyState` y botón de limpiar búsqueda: `AnimatedVisibility` (fade + scale).
+  * Cambio de texto en contador de TopBar: `Crossfade`.
+  * Cambio de orden ("Recientes" / "Antiguos"): `listState.animateScrollToItem(0)`.
+  * Resaltado de item recién agregado: Animación de color de fondo `primaryContainer.copy(alpha = 0.35f)` desvaneciéndose a `surface` en ~1000ms con `animateColorAsState`.
+* **Animaciones prohibidas:**
+  * Transiciones complejas de Lottie, librerías externas de animación, shared elements o efectos de sonido.
 
 ---
 
-## 6. Modelo de datos y comportamiento
+## 5. Layout por pantalla & Modularización Compose (State Hoisting)
 
-### 6.1 Persistencia local
+La interfaz se estructura en una sola pantalla modularizada en 4 archivos principales dentro de `ui/screens/` para mantener responsabilidades delimitadas sin inflar el árbol de recomposición:
 
-**Room** — entity heredada:
+```
+ui/screens/
+├── AnimeListScreen.kt        → Orquestador principal (Scaffold, SnackbarHost, gestión de diálogos y sheets)
+├── AnimeListTopBar.kt        → TopBar dedicada: Título, subtítulo contador, SortToggle, Theme Icon, Overflow Menu
+├── AnimeListContent.kt       → Fila de FilterChips, SearchBar, LazyColumn con keys estables y EmptyStates
+└── AnimeListFileActions.kt   → Contrato e integración con launchers SAF (Storage Access Framework)
+```
+
+### 5.1 Firmas de State Hoisting y desacoplamiento UI
+
+Para evitar que los subcomposables dependan directamente del ViewModel, se exige el siguiente contrato inmutable:
+
+#### `AnimeListTopBar`
+```kotlin
+@Composable
+fun AnimeListTopBar(
+    totalCount: Int,
+    visibleCount: Int,
+    isFilteredOrSearched: Boolean,
+    sortOrder: SortOrder,
+    onSortOrderChanged: (SortOrder) -> Unit,
+    onOpenThemeSheet: () -> Unit,
+    onImportRequested: () -> Unit,
+    onExportTxtRequested: () -> Unit,
+    onExportJsonRequested: () -> Unit,
+    modifier: Modifier = Modifier
+)
+```
+
+#### `AnimeListContent`
+```kotlin
+@Composable
+fun AnimeListContent(
+    searchQuery: String,
+    onSearchQueryChanged: (String) -> Unit,
+    activeFilter: ListFilter,
+    onFilterChanged: (ListFilter) -> Unit,
+    animes: List<AnimeUi>,
+    isInitialLoading: Boolean,
+    highlightedAnimeId: Long?,
+    onAnimeClick: (AnimeUi) -> Unit,
+    onChipRewatchedClick: (AnimeUi) -> Unit,
+    onDeleteClick: (AnimeUi) -> Unit,
+    onCopyClick: (AnimeUi) -> Unit,
+    onGoogleSearchClick: (AnimeUi) -> Unit,
+    modifier: Modifier = Modifier
+)
+```
+
+#### Regla de Claves Estables en `LazyColumn`
+En `AnimeListContent`, los ítems de la lista **deben usar explícitamente la clave de ID de Room** para evitar recomposiciones masivas al borrar o filtrar elementos:
+```kotlin
+LazyColumn(state = listState) {
+    items(
+        items = animes,
+        key = { anime -> anime.id }
+    ) { anime ->
+        AnimeCard(anime = anime, ...)
+    }
+}
+```
+
+---
+
+## 6. Modelo de datos, pipeline reactivo y comportamiento
+
+### 6.1 Entity y Query Canónica de Room
+
+La entidad Room representa cada registro de anime:
 
 ```kotlin
 @Entity(tableName = "animes")
@@ -206,108 +167,111 @@ data class AnimeEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val nombre: String,
     val vecesVisto: Int = 1,
-    val createdAt: Long = System.currentTimeMillis()  // metadata; ya no es la fuente de orden
+    val createdAt: Long = System.currentTimeMillis()
 )
 ```
 
-**DAO — cambio v5:** una sola query canónica. Se eliminan `getAll()` / `getAllDesc()`:
+**DAO (`AnimeDao`) — Fuente única de verdad:**
+Se elimina la duplicación de queries SQL (`getAll` / `getAllDesc`). Se utiliza una única query canónica que garantiza la cronología histórica y desempata inserciones continuas:
 
 ```kotlin
-@Query("SELECT * FROM animes ORDER BY id ASC")
-fun getAllCanonical(): Flow<List<AnimeEntity>>
-```
+@Dao
+interface AnimeDao {
+    @Query("SELECT * FROM animes ORDER BY createdAt ASC, id ASC")
+    fun getAllCanonical(): Flow<List<AnimeEntity>>
 
-`id ASC` representa el orden de alta real, evita empates de timestamp y no depende del reloj del dispositivo. El orden descendente y la numeración se derivan en el ViewModel (§6.2). Se mantienen `insert`, `update`, `delete`, `deleteAll`, `insertAll`. La dedup de import se hace en Kotlin sobre la lista canónica ya emitida (se elimina `findByNameCaseInsensitive` como query separada).
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(anime: AnimeEntity): Long
 
-**DataStore** — claves de tema heredadas + nueva clave de orden:
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(animes: List<AnimeEntity>)
 
-```kotlin
-val SORT_ORDER_KEY = stringPreferencesKey("sort_order")  // "desc" | "asc", default "desc"
-```
+    @Update
+    suspend fun update(anime: AnimeEntity)
 
-Valores inválidos o ausentes → fallback a `"desc"`. Sin crash.
+    @Delete
+    suspend fun delete(anime: AnimeEntity)
 
-### 6.2 Número de lista — posición canónica (reemplaza §5.2 de v4)
+    @Query("DELETE FROM animes")
+    suspend fun deleteAll()
 
-**Decisión cerrada:** el número visible es la **posición canónica del item dentro de la lista ascendente visible** (excluyendo pending deletes).
-
-Implicaciones:
-
-- Vista "Antiguos": `1, 2, 3… N`.
-- Vista "Recientes": se invierte el render, **no la numeración**: `N, N-1, N-2… 1`.
-- Búsqueda y filtro `x2+`: los resultados **conservan su número canónico**. Buscar no renumera a `1, 2, 3`. En una lista larga el número es referencia de ubicación, no decoración.
-- Borrar renumera (el número refleja la lista actual). Undo renumera de vuelta.
-
-**Pipeline de derivación (ViewModel):**
-
-```kotlin
-combine(roomFlow, queryFlow, sortOrderFlow, filterFlow, pendingDeleteFlow) { entities, query, sort, filter, pending ->
-    val visible = entities.filterNot { it.id in pending }
-
-    val numbered = visible.mapIndexed { index, entity ->
-        AnimeUi(id = entity.id, numero = index + 1, nombre = entity.nombre, vecesVisto = entity.vecesVisto)
+    @Transaction
+    suspend fun replaceAll(animes: List<AnimeEntity>) {
+        deleteAll()
+        insertAll(animes)
     }
-
-    val searched = if (query.isBlank()) numbered
-        else numbered.filter { it.nombre.contains(query, ignoreCase = true) }
-
-    val filtered = when (filter) {
-        ListFilter.ALL -> searched
-        ListFilter.REWATCHED -> searched.filter { it.vecesVisto > 1 }
-    }
-
-    val ordered = if (sort == SortOrder.DESC) filtered.asReversed() else filtered
-    // ...arma UiState con ordered, totalCount = numbered.size, visibleCount = ordered.size
 }
 ```
 
-**Justificación de la derivación en memoria:** revoca la decisión v4 de "sort 100% SQL" porque la numeración canónica exige una única fuente ascendente. Para el tamaño real de esta lista (cientos de items) el costo es irrelevante; la claridad de UX gana sobre la optimización prematura.
+### 6.2 DataStore Preferences
 
-**Alternativa documentada (si la lista creciera a miles):** campo explícito `posicion: Int` con mantenimiento en insert/delete/import y `ORDER BY posicion ASC/DESC`. No se implementa ahora.
-
-### 6.3 vecesVisto — independiente del nombre
-
-Hereda v4 (no se infiere del nombre, chip `xN` + tinte `primaryContainer.copy(alpha = 0.18f)` cuando `vecesVisto > 1`).
-
-**Agregado v5:** cuando `vecesVisto > 1`, el chip es **clickable** y abre el diálogo de edición. Es el punto obvio de interacción para corregir el conteo. No se agrega stepper en la card.
-
-### 6.4 Import / Export
-
-Hereda v4: dual `.txt` (humano, pierde `vecesVisto`) / `.json` (backup completo), detección por contenido (`startsWith("{")` tras trim), default "Combinar", dedup contra existentes con `trim().lowercase()` (comparación en Kotlin, sin normalizar acentos).
-
-**Cambios v5:**
-
-**1) Resultado de import rico:**
+`AppPreferences.kt` administra las claves de configuración local:
 
 ```kotlin
-data class ImportResult(
-    val detectedFormat: DetectedFormat,  // TXT | JSON
-    val validEntries: Int,
-    val imported: Int,
-    val duplicatesSkipped: Int,
-    val invalidSkipped: Int,
-    val ignoredLines: Int
+val MODE_KEY = stringPreferencesKey("mode")          // "light" | "dark" | "system"
+val ACCENT_KEY = stringPreferencesKey("accent")      // "green" | "orange" | "blue" | "purple"
+val SORT_ORDER_KEY = stringPreferencesKey("sort")    // "desc" | "asc" (default: "desc")
+```
+
+Cualquier valor corrupto o ausente debe ser manejado mediante fallback automático (`"desc"`, `"system"`, `"green"`) sin emitir valores nulos al flujo de estado.
+
+### 6.3 Pipeline Reactivo Optimizado (ViewModel)
+
+Para evitar re-ejecutar el filtrado y ordenamiento de datos cuando cambian estados efímeros de la interfaz (como mostrar un diálogo), la canalización en `AnimeViewModel` se descompone en un flujo puro de datos:
+
+```kotlin
+// Pipeline de datos inmutable
+val uiState: StateFlow<AnimeListUiState> = combine(
+    repository.getAllCanonical(),
+    searchQueryFlow,
+    sortOrderFlow,
+    filterFlow,
+    pendingDeleteIdsFlow
+) { entities, query, sortOrder, filter, pendingDeletes ->
+    
+    // 1. Excluir pending deletes (borrado con Undo)
+    val visibleEntities = entities.filterNot { it.id in pendingDeletes }
+
+    // 2. Asignar numeración canónica (1..N sobre el orden ascendente)
+    val canonicalList = visibleEntities.mapIndexed { index, entity ->
+        AnimeUi(
+            id = entity.id,
+            numero = index + 1,
+            nombre = entity.nombre,
+            vecesVisto = entity.vecesVisto
+        )
+    }
+
+    // 3. Aplicar búsqueda por nombre (case-insensitive)
+    val searchedList = if (query.isBlank()) canonicalList
+    else canonicalList.filter { it.nombre.contains(query, ignoreCase = true) }
+
+    // 4. Aplicar filtro secundario (Todos / vistos > 1)
+    val filteredList = when (filter) {
+        ListFilter.ALL -> searchedList
+        ListFilter.REWATCHED -> searchedList.filter { it.vecesVisto > 1 }
+    }
+
+    // 5. Aplicar orden de vista (Recientes = DESC, Antiguos = ASC)
+    val finalList = if (sortOrder == SortOrder.DESC) filteredList.asReversed() else filteredList
+
+    AnimeListUiState.Success(
+        animes = finalList,
+        totalCount = canonicalList.size,
+        visibleCount = finalList.size
+    )
+}.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = AnimeListUiState.Loading
 )
 ```
 
-**2) Dedup interno del archivo:** si el mismo archivo trae duplicados, **el primero gana** y el resto suma a `duplicatesSkipped`. Aplica a `.txt` y `.json`.
+### 6.4 Algoritmo de Importación & Exportación
 
-**3) Diálogo de import con resumen:** tras elegir el archivo, se parsea en background (`Dispatchers.IO`) y el diálogo de confirmación muestra formato detectado, entradas válidas, duplicados e inválidas. En "Reemplazar" advierte además cuántos animes actuales se eliminarán. El parseo vive en el ViewModel (estado efímero); si el proceso muere con el diálogo abierto, se acepta re-parsear al reabrir (edge case documentado, no bloqueante).
-
-**4) Replace transaccional:**
-
-```kotlin
-@Transaction
-suspend fun replaceAll(animes: List<AnimeEntity>) {
-    deleteAll()
-    insertAll(animes)
-}
-```
-
-**5) `createdAt` secuencial en import** (`base + index`) para que la metadata refleje el orden del archivo, aunque el orden canónico ya lo garantiza `id ASC` por el orden de inserción.
-
-**6) Export `.txt` no destructivo (reemplaza la regla de strip de v4):**
-
+#### Respaldo e Importación Formato `.txt`
+* **Parser de importación:** Lee línea por línea, trimea espacios y descarta líneas vacías. Remueve prefijos numéricos iniciales (ej. `"1. "`). **No parsea el sufijo `xN`**; las entradas importadas desde `.txt` se asignan por defecto con `vecesVisto = 1`.
+* **Exportación no destructiva (`formatLine`):**
 ```kotlin
 fun formatLine(position: Int, name: String, vecesVisto: Int): String {
     val hasSuffix = Regex("\\s+x\\d+$").containsMatchIn(name)
@@ -316,265 +280,218 @@ fun formatLine(position: Int, name: String, vecesVisto: Int): String {
 }
 ```
 
-- `vecesVisto == 1` → nunca se toca el nombre.
-- `vecesVisto > 1` y el nombre ya termina en `xN` → se deja igual (no se reescribe texto del usuario).
-- `vecesVisto > 1` sin sufijo → se agrega `xN`.
-
-**Trade-off documentado:** en casos ambiguos el `.txt` puede no reflejar `vecesVisto`. El backup exacto es `.json`. Prioridad: no mutar nombres literales.
-
-**7) Snackbars post-import actualizados:**
-
-| Resultado | Mensaje |
-|---|---|
-| 0 válidas | "No se encontraron entradas válidas en el archivo" |
-| N importadas, sin omisiones | "Importaste N animes" |
-| Con duplicados | "Importaste N animes (M duplicados omitidos)" |
-| Con duplicados e inválidas | "Importaste N animes (M duplicados, K inválidos)" |
-
-### 6.5 Pending delete — política explícita (nuevo)
-
-- **Regla 1 — Un pending delete a la vez.** Si se confirma un segundo borrado, el primero se commitea inmediatamente y arranca el undo del segundo.
-- **Regla 2 — Import/export resuelven pending deletes.** Al iniciar una importación o exportación, los pending deletes se commitean antes de operar.
-- **Regla 3 — Numeración y contador se calculan sobre la lista visible** (excluyendo pending deletes). Durante los 4 segundos puede haber una renumeración transitoria; al hacer undo, vuelve. Es el comportamiento más consistente con "la lista que estoy viendo".
-
-### 6.6 Feedback de cambios (nuevo)
-
-- **Al cambiar de orden:** `animateScrollToItem(0)`.
-- **Al agregar un anime:** scroll hasta el item nuevo (arriba en DESC, abajo en ASC) y **highlight** temporal: fondo `primaryContainer.copy(alpha = 0.35f)` que se desvanece a `surface` en ~1000–1200 ms vía `animateColorAsState`, limpiando `highlightedAnimeId` con `LaunchedEffect`.
-- El highlight no compite con el tinte de `vecesVisto > 1`: es transitorio y más intenso; el tinte es permanente y sutil.
-
----
-
-## 7. Microinteracciones
-
-| Acción | Comportamiento |
-|---|---|
-| Tap en tarjeta | Abre edición (hereda) |
-| Tap en chip `xN` | Abre edición (nuevo) |
-| Tap en FAB | Abre diálogo de agregar (hereda) |
-| Borrar | Diálogo de confirmación + snackbar "Deshacer" 4s (hereda) + política §6.5 |
-| Copiar | Snackbar breve "Copiado" (hereda) |
-| Buscar en Google | `ACTION_VIEW` con query **codificada** (`appendQueryParameter` o `Uri.encode`) y manejo de `ActivityNotFoundException` (actualizado) |
-| Cambiar tema / acento | Instantáneo (hereda) |
-| Cambiar orden | Scroll al inicio (nuevo) |
-| Agregar item | Scroll al item + highlight (nuevo) |
-
-Snacks: hereda v4 (único `SnackbarHostState`, eventos one-shot vía `SharedFlow`/`Channel`, consumidos con `LaunchedEffect`).
-
-### 7.1 Accesibilidad
-
-Hereda v4, con el número canónico en semantics:
-
-| Componente | contentDescription |
-|---|---|
-| AnimeCard | "194. Konosuba, visto 2 veces" — número canónico + nombre + vecesVisto si > 1 |
-| SortToggle | "Más recientes primero" / "Más antiguos primero" |
-| FilterChip x2+ | "Mostrar solo animes vistos más de una vez" |
-| EmptyStates | Hereda v4 + los dos nuevos del filtro |
-
----
-
-## 8. Fuera de alcance (v5)
-
-Se hereda todo el fuera-de-alcance de v4 (posters, categorías, cloud, cuentas, drag-to-reorder, multi-select, estadísticas, tablet, widget, notificaciones, CSV/YAML/etc., haptics, swipe-to-delete), **excepto** "animaciones de transición elaboradas", que se reemplaza por la lista cerrada de §4.4.
-
-**Agregados al fuera de alcance:**
-
-- Orden alfabético (A-Z / Z-A).
-- Lottie, parallax, shared element transitions, sonido.
-- Persistencia del filtro `x2+` (es estado de sesión).
-- Stepper de `vecesVisto` dentro de la card.
-
-Esto cierra preguntas previsibles sin volver a abrir el scope.
-
----
-
-## 9. Decisiones cerradas (v5)
-
-| # | Decisión | Razón | Estado |
-|---|---|---|---|
-| 1 | Stack: Kotlin + Compose + M3 + Room + DataStore | Moderno, idiomático | Hereda v4 |
-| 2 | Theming de dos capas (modo + acento) | Flexibilidad sin acoplar | Hereda v4 |
-| 3 | No `dynamicColor` | El acento es elección del usuario | Hereda v4 |
-| 4 | Fuente del sistema | No justifica peso ni setup | Hereda v4 |
-| 5 | Sin DI framework | Un solo grafo, factory simple alcanza | Hereda v4 |
-| 6 | Sin Navigation Compose | Una pantalla con estados | Hereda v4 |
-| 7 | Número de lista = posición canónica de la lista ascendente visible | Permite ver `N…1` en descendente | Reemplaza v4 #7 |
-| 8 | Búsqueda/filtro conservan el número canónico | El número es referencia de ubicación | Reemplaza v4 #8 |
-| 9 | `vecesVisto` independiente del nombre | Cero ambigüedad de parsing | Hereda v4 |
-| 10 | `vecesVisto > 1` muestra chip + tinte | Destacar implica más que un chip suelto | Hereda v4 |
-| 11 | Tap en tarjeta = editar | El target más grande es la mejor UX | Hereda v4 |
-| 12 | Borrar con diálogo + snackbar undo | Doble protección contra tap accidental | Hereda v4 |
-| 13 | Buscar en Google abre navegador directo | Sin pantalla intermedia | Hereda v4 |
-| 14 | DataStore para preferencias | Moderno, expone Flow | Hereda v4 |
-| 15 | Parser de import "tonto" (no parsea `xN`) | Modelo simple gana | Hereda v4 |
-| 16 | Export `.txt` no reescribe nombres legítimos | No mutar texto del usuario; `.json` es el backup exacto | Reemplaza v4 #16 |
-| 17 | Import default "Combinar" | Menos destructivo | Hereda v4 |
-| 18 | SortToggle "Recientes" (DESC, default) / "Antiguos" (ASC). Sin alfabético | El caso principal es ver lo último agregado | Reemplaza v4 #18 |
-| 19 | Dual `.txt` / `.json` | Humano vs backup, dos casos reales | Hereda v4 |
-| 20 | Detección de formato por contenido | Las URIs de SAF no garantizan extensión | Hereda v4 |
-| 21 | `rememberSaveable` para estados UI transitorios | Sobreviven rotación | Hereda v4 |
-| 22 | Strip de newlines en nombres al guardar | Evita entradas rotas | Hereda v4 |
-| 23 | `Modifier.semantics` con número canónico | Accesibilidad básica | Hereda v4 (actualizada) |
-| 24 | Application para init temprano de Room | Cold start detrás del splash | Hereda v4 |
-| 25 | Query canónica única (`id ASC`) + derivación en memoria | La numeración canónica exige una fuente; escala real chica | Reemplaza v4 #25 |
-| 26 | Modularización de pantalla en archivos por concern | Responsabilidades separadas | Hereda v4 |
-| 27 | minSdk 28 | Cobertura suficiente | Hereda v4 |
-| 28 | `isInitialLoading` + skeleton (con cláusula de simplificación) | Distingue cargando de vacío | Hereda v4 (con cláusula) |
-| 29 | Orden elegido persistido en DataStore, default DESC | Comodidad sin costo | Nueva |
-| 30 | Contador visible (total / resultados) en TopBar | Orientación en listas largas | Nueva |
-| 31 | Scroll al inicio al cambiar orden | Comportamiento esperado | Nueva |
-| 32 | Scroll al item nuevo + highlight temporal | Feedback de la acción de agregar | Nueva |
-| 33 | Animaciones sutiles y funcionales, lista cerrada (§4.4) | Pulido sin extravagancia | Nueva |
-| 34 | Filtro `x2+` con empty states propios | Feature simple sobre dato existente | Nueva |
-| 35 | Chip `xN` clickable → edición | Affordance obvia para corregir conteo | Nueva |
-| 36 | `ImportResult` rico + diálogo con resumen | Transparencia en operación sensible | Nueva |
-| 37 | Dedup interno del archivo, primero gana | Evita duplicados desde el origen | Nueva |
-| 38 | Replace transaccional | Sin estado inconsistente a mitad de operación | Nueva |
-| 39 | Política de pending deletes (§6.5) | Coherencia entre estado visual y DB | Nueva |
-| 40 | Export con nombre de archivo fechado | Mejor identificación de backups | Nueva |
-| 41 | Query de Google codificada + manejo de sin-navegador | Robustez de intent | Nueva |
-| 42 | `material-color-utilities` recomendado para contraste | Tokens correctos sin dynamic color | Nueva (optativa) |
-
----
-
-## 10. Estructura de carpetas
-
-Hereda v4, con estos cambios marcados:
-
+#### Respaldo e Importación Formato `.json`
+Usa `kotlinx.serialization` con el siguiente esquema versionado:
+```json
+{
+  "version": 1,
+  "animes": [
+    { "nombre": "One Punch Man", "vecesVisto": 1 },
+    { "nombre": "Konosuba", "vecesVisto": 2 }
+  ]
+}
 ```
-app/src/main/java/com/laumar/anilista/
- │
- ├── AniListaApp.kt
- │
- ├── data/
- │   ├── AnimeEntity.kt            → sin cambios
- │   ├── AnimeDao.kt               → getAllCanonical() (id ASC); se eliminan getAll/getAllDesc/findByNameCaseInsensitive
- │   ├── AppDatabase.kt            → sin cambios
- │   └── AppPreferences.kt         → antes ThemePreferences.kt: modo + acento + sort_order
- │
- ├── repository/
- │   └── AnimeRepository.kt        → más activo: parse, dedup, ImportResult, replaceAll transaccional
- │
- ├── viewmodel/
- │   ├── AnimeViewModel.kt         → deriva numeración canónica, orden, filtro, contador, highlight
- │   └── ThemeViewModel.kt         → sin cambios
- │
- ├── ui/
- │   ├── theme/                    → Color.kt / Theme.kt / Type.kt (sin cambios; eventual migración a color-utilities)
- │   ├── screens/
- │   │   ├── AnimeListScreen.kt
- │   │   ├── AnimeListTopBar.kt    → + subtítulo contador con Crossfade + nuevos labels del SortToggle
- │   │   ├── AnimeListContent.kt   → + fila de FilterChips + highlight + AnimatedVisibility en empty states
- │   │   └── AnimeListFileActions.kt
- │   └── components/
- │       ├── AnimeCard.kt          → lee ui.numero (canónico) + chip xN clickable + highlight
- │       ├── AddEditDialog.kt
- │       ├── DeleteConfirmDialog.kt
- │       ├── ImportConfirmDialog.kt→ + resumen del parse (formato, válidas, duplicados, inválidas)
- │       ├── VecesVistoStepper.kt
- │       ├── ThemeBottomSheet.kt
- │       ├── SortToggle.kt         → labels "Recientes" / "Antiguos"
- │       ├── ListFilterChips.kt    → nuevo: Todos / x2+
- │       └── EmptyState.kt         → + variantes del filtro
- │
- ├── utils/
- │   ├── ImportExportUtils.kt      → formatLine no destructivo + ImportResult
- │   └── JsonImportExport.kt       → sin cambios
- │
- └── MainActivity.kt
+`Json { prettyPrint = true; ignoreUnknownKeys = true }` garantiza compatibilidad con versiones futuras y archivos legibles. **El formato JSON preserva el valor exacto de `vecesVisto`**.
+
+#### Reglas Críticas de Importación (Batch & Deduplicación)
+1. **Timestamp Secuencial:** Para evitar colisiones en Room al insertar listas masivas, se asigna `createdAt = baseTimestamp + index`. Esto preserva el orden exacto del archivo al hacer query por `createdAt ASC`.
+2. **Deduplicación en modo "Combinar":** Se compara usando `existing.nombre.trim().lowercase() == imported.nombre.trim().lowercase()`. Si ya existe, la entrada del archivo se descarta.
+3. **Resumen de Importación (`ImportResult`):** Transmite al usuario cuántas entradas se importaron, cuántos duplicados se omitieron y cuántas líneas tenían formato inválido.
+
+### 6.5 Política de Pending Deletes (Undo)
+
+* **Un solo borrado pendiente a la vez:** Confirmar un segundo borrado commitea inmediatamente el anterior en la base de datos Room.
+* **Confirmación automática en IO:** Iniciar una importación o exportación commitea de inmediato cualquier borrado pendiente.
+* **Cálculo dinámico:** La numeración y los contadores se calculan excluyendo las IDs presentes en `pendingDeleteIdsFlow`.
+
+---
+
+## 7. Localización & Accesibilidad
+
+### 7.1 Catálogo Único de Recursos (`strings.xml`)
+
+Queda estrictamente prohibido hardcodear cadenas de texto en los componentes Composable. Todos los textos deben ser referenciados mediante `stringResource(R.string.id)`:
+
+```xml
+<!-- strings.xml (Extracto de catálogo) -->
+<resources>
+    <string name="app_name">AniNote</string>
+    <string name="topbar_title">Mi lista</string>
+    <string name="counter_all">%1$d animes</string>
+    <string name="counter_filtered">%1$d de %2$d</string>
+    
+    <string name="sort_recent">Recientes</string>
+    <string name="sort_oldest">Antiguos</string>
+    <string name="sort_desc_cd">Más recientes primero</string>
+    <string name="sort_asc_cd">Más antiguos primero</string>
+    
+    <string name="filter_all">Todos</string>
+    <string name="filter_rewatched">x2+</string>
+    
+    <string name="import_result_success">Se importaron %1$d animes</string>
+    <string name="import_result_with_skips">Se importaron %1$d animes (%2$d duplicados omitidos)</string>
+</resources>
+```
+
+### 7.2 Accesibilidad (Semantics)
+
+Cada tarjeta de anime debe incluir un `Modifier.semantics` descriptivo para lectores de pantalla (TalkBack):
+```kotlin
+Modifier.semantics {
+    contentDescription = "$numero. $nombre" + if (vecesVisto > 1) ", visto $vecesVisto veces" else ""
+}
 ```
 
 ---
 
-## 11. Roadmap de implementación (orden sugerido v5)
+## 8. Microinteracciones
 
-Cada fase cierra sola y se puede probar en device real antes de pasar a la siguiente.
-
-**Fase 1 — Orden y numeración (el núcleo)**
-1. Query canónica `id ASC`; eliminar queries ASC/DESC duplicadas.
-2. Derivación de numeración canónica en ViewModel.
-3. Default DESC + persistencia en DataStore.
-4. Labels "Recientes" / "Antiguos".
-5. Números canónicos en búsqueda.
-Conceptos: `combine`, `mapIndexed`, `asReversed`, DataStore con fallback.
-
-**Fase 2 — Orientación y feedback**
-1. Contador en TopBar con `Crossfade`.
-2. `animateScrollToItem(0)` al cambiar orden.
-3. Scroll al item nuevo + highlight con `animateColorAsState`.
-Conceptos: `LazyListState`, `LaunchedEffect` con clave de highlight, `tween`.
-
-**Fase 3 — Robustez de import/export**
-1. `ImportResult` + dedup interno.
-2. Diálogo con resumen.
-3. `replaceAll` transaccional.
-4. `formatLine` no destructivo.
-5. Nombres de archivo fechados.
-Conceptos: `@Transaction`, parse en `Dispatchers.IO`, manejo de excepciones.
-
-**Fase 4 — Pulido visual**
-1. `AnimatedVisibility` en empty states y clear button.
-2. `Crossfade` en contador (si no se hizo en Fase 2).
-3. Validar contraste de acentos en device real; evaluar `material-color-utilities`.
-Conceptos: enter/exit specs, easing estándar de M3.
-
-**Fase 5 — Features simples**
-1. Filtro `x2+` con empty states propios.
-2. Chip `xN` clickable.
-Conceptos: `FilterChip`, estados derivados adicionales.
-
-**Fase 6 — Calidad**
-1. Tests de parsers `.txt` / `.json`.
-2. Tests de numeración canónica, orden DESC, búsqueda con números reales.
-3. Tests de merge/dedup y de `formatLine`.
-Conceptos: tests unitarios puros + Room in-memory para DAO.
+| Acción | Comportamiento en pantalla |
+|---|---|
+| **Tap en Tarjeta** | Abre el diálogo de edición con datos pre-cargados. |
+| **Tap en Chip `xN`** | Abre el diálogo de edición enfocando la modificación de conteo. |
+| **Borrar** | Muestra diálogo de confirmación. Al confirmar, remueve de vista y muestra Snackbar con opción "Deshacer" por 4 segundos. |
+| **Búsqueda en Google** | Lanza `Intent.ACTION_VIEW` codificando la URL en UTF-8 (`Uri.encode`) para prevenir fallos con caracteres especiales o japoneses. |
+| **Cambio de Orden** | Invierte la lista y ejecuta `listState.animateScrollToItem(0)`. |
+| **Agregar Anime** | Inserta registro, scrollea al item nuevo y aplica un highlight de color temporal (~1000ms). |
 
 ---
 
-## 12. Criterios de aceptación
+## 9. Fuera de alcance (v5)
 
-**Orden y numeración**
-- [ ] Al abrir, la vista default es Recientes (o la última elegida, persistida).
-- [ ] El primer item visible muestra `N` (el total actual).
-- [ ] En Antiguos, el primero muestra `1`.
-- [ ] En búsqueda, los resultados muestran su número real.
-- [ ] Al borrar, renumera; al hacer undo, renumera de vuelta.
-
-**Orientación y feedback**
-- [ ] El contador muestra total y `X de N` con búsqueda/filtro.
-- [ ] Cambiar de orden scrollea al inicio.
-- [ ] Agregar un item scrollea hasta él y lo resalta ~1s.
-
-**Import/export**
-- [ ] El diálogo de import muestra formato y conteos antes de confirmar.
-- [ ] Duplicados internos del archivo se detectan.
-- [ ] Replace es atómico.
-- [ ] Export `.txt` no altera nombres que ya terminan en `xN`.
-
-**UI**
-- [ ] Las animaciones son sutiles y ninguna bloquea el uso.
-- [ ] Empty states entran/salen con transición suave.
-- [ ] La app se sigue sintiendo liviana.
+Permanecen fuera del alcance de la aplicación para preservar la simplicidad:
+* Imágenes, posters remotos o consumo de APIs externas de anime (Jikan, Kitsu, AniList, etc.).
+* Categorizaciones avanzadas, géneros, o etiquetas personalizadas.
+* Sincronización en la nube o cuentas de usuario.
+* Ordenamiento alfabético (A-Z / Z-A).
+* Animaciones complejas con Lottie o Shared Element Transitions.
+* Soporte dedicado para tablets o widgets de pantalla de inicio.
 
 ---
 
-## 13. Glosario — agregados v5
+## 10. Matriz de decisiones cerradas (v5.1)
 
-- `AnimatedVisibility` — mostrar/ocultar un Composable con transición de entrada/salida.
-- `Crossfade` — intercambia contenido con fade entre estados.
-- `animateColorAsState` — interpola entre dos colores cuando cambia el target.
-- `tween` — spec de duración + easing para animaciones.
-- `animateScrollToItem(index)` — scroll animado de `LazyListState` hasta un item.
-- `Modifier.animateItem()` — anima reposicionamiento de items dentro de Lazy layouts (según versión de Compose).
-- `combine` — combina varios Flows en uno, re-emitiendo cuando cualquiera cambia.
-- `@Transaction` (Room) — agrupa varias operaciones en una unidad atómica.
-- `material-color-utilities` — librería de generación de paletas armónicas con contraste correcto, usable con semilla explícita.
+| # | Decisión | Razón técnica |
+|---|---|---|
+| 1 | Stack: Kotlin + Compose + M3 + Room + DataStore | Estándar moderno de Android nativo |
+| 2 | Theming de dos capas (Modo + Acento) | Flexibilidad de personalización sin acoplar superficies |
+| 3 | Sin `dynamicColor` (Wallpaper) | El acento es elección explícita de marca/usuario |
+| 4 | Sin DI Frameworks (Hilt/Koin) | Grafo simple instanciado en `Application` / ViewModel Factories |
+| 5 | Una sola pantalla (`AnimeListScreen`) | Evita la complejidad innecesaria de Navigation Compose |
+| 6 | Query Canónica (`createdAt ASC, id ASC`) | Fuente única de verdad histórica; elimina empates de milisegundos |
+| 7 | Pipeline de datos en `combine` separado de UI | Previene re-filtrados costosos al interactuar con diálogos |
+| 8 | Numeración canónica (`1..N`) | Refleja la posición real de alta en la lista |
+| 9 | Default de vista Descendente ("Recientes") | Permite ver inmediatamente lo último agregado al abrir la app |
+| 10 | Persistencia de orden en DataStore | Conserva la preferencia de lectura del usuario entre sesiones |
+| 11 | Exportación `.txt` no destructiva (`formatLine`) | Evita mutar nombres que contengan 'xN' legítimamente |
+| 12 | Importación batch con timestamps secuenciales | Preserva el orden del archivo al insertar en Room |
+| 13 | Deduplicación case-insensitive (`trim().lowercase()`) | Evita duplicados por diferencias de mayúsculas/espacios |
+| 14 | Resumen de importación (`ImportResult`) | Transparencia honesta sobre duplicados y líneas ignoradas |
+| 15 | Localización 100% en `strings.xml` | Calidad de código, mantenibilidad y facilidades de testing |
 
 ---
 
-## 14. Notas finales
+## 11. Estructura de carpetas del proyecto
 
-Se heredan las notas de v4: el brief está vivo (primero se actualiza el brief, después se codea); toda reversión de decisión exige justificar por qué el "por qué" original ya no aplica; el stack se amplía solo con justificación; probar en device real desde la Fase 1.
+```
+app/src/main/java/com/laumar/aninote/
+│
+├── AniNoteApp.kt                → Application: Inicialización de Room y DataStore
+│
+├── data/
+│   ├── AnimeEntity.kt            → Entidad Room (@Entity)
+│   ├── AnimeDao.kt               → DAO con query canónica y @Transaction replaceAll
+│   ├── AppDatabase.kt            → Base de datos Room (Singleton, Versión 1)
+│   └── AppPreferences.kt         → DataStore Preferences (modo, acento, orden)
+│
+├── repository/
+│   └── AnimeRepository.kt        → Intermediario: Operaciones de datos, parsers y dedup
+│
+├── viewmodel/
+│   ├── AnimeViewModel.kt         → Pipeline combine de datos, numeración canónica, eventos UI
+│   └── ThemeViewModel.kt         → Estado y escritura de preferencias de tema
+│
+├── ui/
+│   ├── theme/
+│   │   ├── Color.kt              → Paletas por acento y modos
+│   │   ├── Theme.kt              → Proveedor MaterialTheme
+│   │   └── Type.kt               → Jerarquía de tipografía M3
+│   │
+│   ├── screens/
+│   │   ├── AnimeListScreen.kt    → Orquestador de UI y estados de Scaffold
+│   │   ├── AnimeListTopBar.kt    → TopBar con contadores y controles
+│   │   ├── AnimeListContent.kt   → Fila de filtros, LazyColumn con keys estables
+│   │   └── AnimeListFileActions.kt → Integración SAF para import/export
+│   │
+│   └── components/
+│       ├── AnimeCard.kt          → Tarjeta de anime con semantics y highlight
+│       ├── AddEditDialog.kt      → Diálogo modal agregar/editar
+│       ├── DeleteConfirmDialog.kt→ Diálogo modal de borrado
+│       ├── ImportConfirmDialog.kt→ Diálogo modal de resumen de importación
+│       ├── ThemeBottomSheet.kt   → Selector de tema y acento
+│       ├── SortToggle.kt         → Botón segmentado Recientes/Antiguos
+│       ├── ListFilterChips.kt    → Chips de filtrado Todos / x2+
+│       └── EmptyState.kt         → Iluminación visual de estados vacíos
+│
+└── utils/
+    ├── ImportExportUtils.kt      → Parsers .txt, formatLine, ImportResult
+    └── JsonImportExport.kt       → Parsers .json kotlinx.serialization
+```
 
-**Nota v5:** este documento no implica rewrite. Se aplica por fases sobre la app existente. Si una fase queda a mitad, la app sigue funcionando igual que en v4: ninguna fase rompe la anterior.
+---
+
+## 12. Roadmap de implementación por fases
+
+Las fases son incrementales y no rompedoras; la app se mantiene funcional tras completar cada fase:
+
+* **Fase 1: Query Canónica y Pipeline de Datos (Núcleo)**
+  * Actualizar `AnimeDao` con `getAllCanonical()`.
+  * Configurar la numeración canónica y el sort en el `combine` de `AnimeViewModel`.
+  * Añadir persistencia del orden elegido en `AppPreferences`.
+* **Fase 2: Contadores y Orientación UI**
+  * Actualizar `AnimeListTopBar` con subtítulo dinámico y animación `Crossfade`.
+  * Implementar etiquetas "Recientes" / "Antiguos" en `SortToggle`.
+* **Fase 3: Robustez de Importación / Exportación**
+  * Actualizar `ImportExportUtils` con timestamps secuenciales y deduplicación `trim().lowercase()`.
+  * Implementar `@Transaction replaceAll` en `AnimeDao`.
+  * Crear el diálogo de confirmación con `ImportResult`.
+* **Fase 4: Motion & Feedback Visual**
+  * Implementar el highlight temporal de color al agregar un anime.
+  * Añadir `animateScrollToItem(0)` al cambiar el orden.
+  * Integrar `AnimatedVisibility` en estados vacíos y botón de limpiar búsqueda.
+* **Fase 5: Filtros de Sesión y Componentes UI**
+  * Implementar `ListFilterChips` (Todos / x2+).
+  * Habilitar click en chip `xN` para abrir edición directa.
+* **Fase 6: Localización y Calidad**
+  * Extraer todas las cadenas de texto a `strings.xml`.
+  * Verificar accesibilidad con TalkBack mediante `Modifier.semantics`.
+
+---
+
+## 13. Criterios de aceptación & plan de pruebas (Android Studio JUnit)
+
+Las pruebas se diseñan para ejecutarse localmente desde el entorno de Android Studio:
+
+### Pruebas Unitarias (`app/src/test/`)
+1. **Parser TXT (`ImportExportUtilsTest`):**
+   * Verificar que líneas vacías o con prefijos `"1. "` se limpien correctamente.
+   * Verificar que `formatLine` no duplique el sufijo `xN` si este ya existe en el nombre.
+2. **Parser JSON (`JsonImportExportTest`):**
+   * Validar deserialización correcta preservando `vecesVisto`.
+   * Verificar que JSONs con `version != 1` o campos inválidos lancen excepciones controladas.
+3. **Deduplicación (`AnimeRepositoryTest`):**
+   * Confirmar que `"Konosuba "` y `"konosuba"` se identifiquen como duplicados al combinar listas.
+
+### Pruebas de Integración In-Memory (`app/src/test/` con Room in-memory)
+1. **Query Canónica (`AnimeDaoTest`):**
+   * Verificar que `getAllCanonical()` devuelva siempre los elementos en orden `createdAt ASC, id ASC`.
+   * Verificar que `replaceAll` elimine los datos existentes e inserte la nueva lista dentro de una sola transacción.
+
+---
+
+## 14. Glosario técnico
+
+* **State Hoisting:** Patrón de diseño en Compose donde el estado se mueve hacia arriba en el árbol para hacer los composables puros, testeables y reutilizables.
+* **Numeración Canónica:** Asignación de un índice persistente secuencial (`1..N`) basado en el orden cronológico original de inserción de cada registro.
+* **Combine Flow:** Operador de Coroutines que agrupa múltiples `Flow` y emite un nuevo valor procesado cada vez que cualquiera de las fuentes cambia.
+* **Atomicidad Transactional (`@Transaction`):** Propiedad de base de datos que garantiza que un conjunto de operaciones (borrar e insertar) se completen totalmente o se reviertan en caso de fallo, impidiendo estados corruptos.

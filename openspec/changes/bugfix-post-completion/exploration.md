@@ -1,8 +1,8 @@
-# Exploration: AniLista Post-Completion Bug Fixes
+# Exploration: AniNote Post-Completion Bug Fixes
 
 ## Current State
 
-The AniLista app is functionally complete — Kotlin + Jetpack Compose + Material 3 + Room + DataStore. All features (list, CRUD, search, sort, theme, import/export) are implemented. After completion, the user identified 9 issues spanning bugs, performance, and architecture deviations from the design brief.
+The AniNote app is functionally complete — Kotlin + Jetpack Compose + Material 3 + Room + DataStore. All features (list, CRUD, search, sort, theme, import/export) are implemented. After completion, the user identified 9 issues spanning bugs, performance, and architecture deviations from the design brief.
 
 ## Issues Found
 
