@@ -6,16 +6,18 @@ import kotlinx.coroutines.flow.Flow
 
 class AnimeRepository(private val dao: AnimeDao) {
 
-    val allAnimes: Flow<List<AnimeEntity>> = dao.getAll()
+    fun getAllCanonical(): Flow<List<AnimeEntity>> = dao.getAllCanonical()
 
-    val allAnimesDesc: Flow<List<AnimeEntity>> = dao.getAllDesc()
-
-    suspend fun insert(anime: AnimeEntity) {
-        dao.insert(anime)
+    suspend fun insert(anime: AnimeEntity): Long {
+        return dao.insert(anime)
     }
 
     suspend fun update(anime: AnimeEntity) {
-        dao.update(anime)
+        dao.updateNameAndCount(anime.id, anime.nombre, anime.vecesVisto)
+    }
+
+    suspend fun delete(anime: AnimeEntity) {
+        dao.delete(anime)
     }
 
     suspend fun deleteById(id: Long) {
@@ -32,5 +34,9 @@ class AnimeRepository(private val dao: AnimeDao) {
 
     suspend fun insertAll(animes: List<AnimeEntity>) {
         dao.insertAll(animes)
+    }
+
+    suspend fun replaceAll(animes: List<AnimeEntity>) {
+        dao.replaceAll(animes)
     }
 }

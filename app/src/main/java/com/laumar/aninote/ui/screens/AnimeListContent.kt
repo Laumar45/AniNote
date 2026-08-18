@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
@@ -42,25 +42,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.laumar.aninote.R
-import com.laumar.aninote.data.AnimeEntity
 import com.laumar.aninote.ui.components.AnimeCard
 import com.laumar.aninote.ui.components.EmptyState
-import com.laumar.aninote.viewmodel.SortOrder
-import com.laumar.aninote.viewmodel.UiState
+import com.laumar.aninote.viewmodel.AnimeListUiState
+import com.laumar.aninote.viewmodel.AnimeUi
 
 @Composable
 fun AnimeListContent(
-    uiState: UiState,
+    searchQuery: String,
+    uiState: AnimeListUiState,
     contentPadding: PaddingValues,
     onQueryChange: (String) -> Unit,
-    onEdit: (AnimeEntity) -> Unit,
-    onDelete: (AnimeEntity) -> Unit,
+    onEdit: (AnimeUi) -> Unit,
+    onDelete: (AnimeUi) -> Unit,
     onSearchFocusChanged: (Boolean) -> Unit,
     onDismissSearchFocus: () -> Unit
 ) {
     Column(Modifier.fillMaxSize().padding(contentPadding)) {
         AnimeSearchField(
-            query = uiState.query,
+            query = searchQuery,
             onQueryChange = onQueryChange,
             onDismissSearchFocus = onDismissSearchFocus,
             onFocusChanged = onSearchFocusChanged
@@ -71,29 +71,33 @@ fun AnimeListContent(
                 .weight(1f)
                 .dismissSearchOnPointerDown(onDismissSearchFocus)
         ) {
-            when {
-                uiState.isInitialLoading -> InitialLoadingSkeleton()
-                uiState.animes.isEmpty() -> EmptyState(
-                    isEmptyList = uiState.query.isBlank(),
-                    searchQuery = uiState.query,
-                    onClearSearch = {
-                        onQueryChange("")
-                        onDismissSearchFocus()
+            when (uiState) {
+                is AnimeListUiState.Loading -> InitialLoadingSkeleton()
+                is AnimeListUiState.Success -> {
+                    if (uiState.animes.isEmpty()) {
+                        EmptyState(
+                            isEmptyList = searchQuery.isBlank(),
+                            searchQuery = searchQuery,
+                            onClearSearch = {
+                                onQueryChange("")
+                                onDismissSearchFocus()
+                            }
+                        )
+                    } else {
+                        AnimeList(
+                            animes = uiState.animes,
+                            onEdit = { anime ->
+                                onDismissSearchFocus()
+                                onEdit(anime)
+                            },
+                            onDelete = { anime ->
+                                onDismissSearchFocus()
+                                onDelete(anime)
+                            },
+                            onDismissSearchFocus = onDismissSearchFocus
+                        )
                     }
-                )
-                else -> AnimeList(
-                    animes = uiState.animes,
-                    sortOrder = uiState.sortOrder,
-                    onEdit = { anime ->
-                        onDismissSearchFocus()
-                        onEdit(anime)
-                    },
-                    onDelete = { anime ->
-                        onDismissSearchFocus()
-                        onDelete(anime)
-                    },
-                    onDismissSearchFocus = onDismissSearchFocus
-                )
+                }
             }
         }
     }
@@ -137,10 +141,9 @@ private fun AnimeSearchField(
 
 @Composable
 private fun AnimeList(
-    animes: List<AnimeEntity>,
-    sortOrder: SortOrder,
-    onEdit: (AnimeEntity) -> Unit,
-    onDelete: (AnimeEntity) -> Unit,
+    animes: List<AnimeUi>,
+    onEdit: (AnimeUi) -> Unit,
+    onDelete: (AnimeUi) -> Unit,
     onDismissSearchFocus: () -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -159,11 +162,9 @@ private fun AnimeList(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        itemsIndexed(animes, key = { _, anime -> anime.id }, contentType = { _, _ -> "AnimeCard" }) { index, anime ->
-            val position = if (sortOrder == SortOrder.ASC) index + 1 else animes.size - index
+        items(animes, key = { it.id }, contentType = { "AnimeCard" }) { anime ->
             AnimeCard(
                 anime = anime,
-                position = position,
                 onDelete = { onDelete(anime) },
                 modifier = Modifier.clickable {
                     onEdit(anime)

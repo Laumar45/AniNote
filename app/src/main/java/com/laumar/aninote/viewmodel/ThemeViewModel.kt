@@ -1,43 +1,43 @@
 package com.laumar.aninote.viewmodel
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.laumar.aninote.data.ThemePreferences
+import com.laumar.aninote.data.AppPreferences
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class ThemeViewModel(context: Context) : ViewModel() {
-    private val appContext = context.applicationContext
-
-    val mode: StateFlow<String> = ThemePreferences.getMode(context)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.DEFAULT_MODE)
-
-    val accent: StateFlow<String> = ThemePreferences.getAccent(context)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemePreferences.DEFAULT_ACCENT)
-
-    fun setMode(mode: String) {
-        viewModelScope.launch {
-            ThemePreferences.setMode(appContext, mode)
-        }
-    }
-
-    fun setAccent(accent: String) {
-        viewModelScope.launch {
-            ThemePreferences.setAccent(appContext, accent)
-        }
-    }
+sealed interface ThemeUiState {
+    data object Loading : ThemeUiState
+    data class Success(val mode: String, val accent: String) : ThemeUiState
 }
 
-class ThemeViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
+class ThemeViewModel(private val preferences: AppPreferences) : ViewModel() {
+
+    val uiState: StateFlow<ThemeUiState> = combine(
+        preferences.modeFlow,
+        preferences.accentFlow
+    ) { mode, accent ->
+        ThemeUiState.Success(mode = mode, accent = accent)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = ThemeUiState.Loading
+    )
+
+    fun setMode(mode: String) = viewModelScope.launch { preferences.setMode(mode) }
+    fun setAccent(accent: String) = viewModelScope.launch { preferences.setAccent(accent) }
+}
+
+class ThemeViewModelFactory(private val preferences: AppPreferences) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ThemeViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ThemeViewModel(context.applicationContext) as T
+            return ThemeViewModel(preferences) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

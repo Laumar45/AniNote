@@ -31,29 +31,26 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.laumar.aninote.R
-import com.laumar.aninote.data.AnimeEntity
+import com.laumar.aninote.viewmodel.AnimeUi
 import java.net.URLEncoder
 
 @Composable
 fun AnimeCard(
-    anime: AnimeEntity,
-    position: Int,
+    anime: AnimeUi,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
 
-    // 1. Memorizar la creación de strings para evitar recalcular en cada recomposición
     val chipDesc = if (anime.vecesVisto > 1) {
         stringResource(R.string.anime_card_seen_times, anime.vecesVisto)
     } else {
         ""
     }
 
-    val itemDesc = stringResource(R.string.anime_card_item_desc, position, anime.nombre, chipDesc)
-    val positionText = stringResource(R.string.anime_card_position, position)
+    val itemDesc = stringResource(R.string.anime_card_item_desc, anime.numero, anime.nombre, chipDesc)
+    val positionText = stringResource(R.string.anime_card_position, anime.numero)
 
-    // 2. Determinar el color de fondo memorizado
     val isSeenMultipleTimes = anime.vecesVisto > 1
     val backgroundColor = if (isSeenMultipleTimes) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
@@ -101,7 +98,6 @@ fun AnimeCard(
             )
         }
 
-        // 3. Aplanado de jerarquía: Se eliminó el 'Row' interno innecesario
         IconButton(onClick = { copyToClipboard(context, anime.nombre) }) {
             Icon(
                 imageVector = Icons.Default.ContentCopy,

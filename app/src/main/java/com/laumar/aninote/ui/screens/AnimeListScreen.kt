@@ -25,14 +25,17 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.laumar.aninote.R
+import com.laumar.aninote.data.AnimeEntity
 import com.laumar.aninote.ui.components.AddEditDialog
 import com.laumar.aninote.ui.components.DeleteConfirmDialog
 import com.laumar.aninote.ui.components.ImportConfirmDialog
 import com.laumar.aninote.ui.components.ThemeBottomSheet
+import com.laumar.aninote.viewmodel.AnimeListUiState
 import com.laumar.aninote.viewmodel.AnimeViewModel
+import com.laumar.aninote.viewmodel.DialogState
+import com.laumar.aninote.viewmodel.ThemeUiState
 import com.laumar.aninote.viewmodel.ThemeViewModel
 import com.laumar.aninote.viewmodel.UiEvent
-import com.laumar.aninote.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +44,11 @@ fun AnimeListScreen(
     themeViewModel: ThemeViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
+    val dialogState by viewModel.dialog.collectAsStateWithLifecycle()
+    val pendingDeleteAnime by viewModel.pendingDeleteAnime.collectAsStateWithLifecycle()
+
     val dismissSearchFocus = rememberDismissSearchFocus()
     val snackbarHostState = remember { SnackbarHostState() }
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -49,6 +57,7 @@ fun AnimeListScreen(
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
     var pendingImportContent by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImportIsJson by rememberSaveable { mutableStateOf(false) }
+
     val fileActions = rememberAnimeListFileActions(
         viewModel = viewModel,
         onImportLoaded = { content, isJson ->
@@ -65,7 +74,8 @@ fun AnimeListScreen(
     AnimeListOverlays(
         viewModel = viewModel,
         themeViewModel = themeViewModel,
-        uiState = uiState,
+        dialogState = dialogState,
+        pendingDeleteAnime = pendingDeleteAnime,
         showThemeSheet = showThemeSheet,
         pendingImportContent = pendingImportContent,
         pendingImportIsJson = pendingImportIsJson,
@@ -97,7 +107,7 @@ fun AnimeListScreen(
     Scaffold(
         topBar = {
             AnimeListTopBar(
-                sortOrder = uiState.sortOrder,
+                sortOrder = sortOrder,
                 showMenu = showMenu,
                 onSortOrderChange = {
                     dismissSearchFocus()
@@ -123,12 +133,13 @@ fun AnimeListScreen(
                     dismissSearchFocus()
                     fileActions.launchExportJson()
                 },
-            onDismissSearchFocus = { if (isSearchFocused) dismissSearchFocus() }
+                onDismissSearchFocus = { if (isSearchFocused) dismissSearchFocus() }
             )
         },
         floatingActionButton = {
+            val isEmptyList = (uiState as? AnimeListUiState.Success)?.animes?.isEmpty() == true && searchQuery.isBlank()
             AnimeListFab(
-                isEmptyList = !uiState.isInitialLoading && uiState.animes.isEmpty() && uiState.query.isBlank(),
+                isEmptyList = isEmptyList,
                 onClick = {
                     dismissSearchFocus()
                     viewModel.openAddDialog()
@@ -138,6 +149,7 @@ fun AnimeListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         AnimeListContent(
+            searchQuery = searchQuery,
             uiState = uiState,
             contentPadding = padding,
             onQueryChange = viewModel::onQueryChange,
@@ -165,7 +177,8 @@ private fun rememberDismissSearchFocus(): () -> Unit {
 private fun AnimeListOverlays(
     viewModel: AnimeViewModel,
     themeViewModel: ThemeViewModel,
-    uiState: UiState,
+    dialogState: DialogState,
+    pendingDeleteAnime: AnimeEntity?,
     showThemeSheet: Boolean,
     showImportDialog: Boolean,
     pendingImportContent: String?,
@@ -188,16 +201,16 @@ private fun AnimeListOverlays(
         )
     }
 
-    if (uiState.dialog.showDialog) {
-        val title = if (uiState.dialog.editingAnime == null) {
+    if (dialogState.showDialog) {
+        val title = if (dialogState.editingAnime == null) {
             stringResource(R.string.dialog_add_title)
         } else {
             stringResource(R.string.dialog_edit_title)
         }
         AddEditDialog(
             title = title,
-            nombre = uiState.dialog.nombre,
-            vecesVisto = uiState.dialog.vecesVisto,
+            nombre = dialogState.nombre,
+            vecesVisto = dialogState.vecesVisto,
             onNombreChange = viewModel::onDialogNombreChange,
             onVecesVistoChange = viewModel::onDialogVecesVistoChange,
             onConfirm = viewModel::confirmDialog,
@@ -205,7 +218,7 @@ private fun AnimeListOverlays(
         )
     }
 
-    uiState.pendingDeleteAnime?.let { anime ->
+    pendingDeleteAnime?.let { anime ->
         DeleteConfirmDialog(
             animeName = anime.nombre,
             onConfirm = viewModel::confirmDelete,
@@ -214,15 +227,17 @@ private fun AnimeListOverlays(
     }
 
     if (showThemeSheet) {
-        val mode by themeViewModel.mode.collectAsStateWithLifecycle()
-        val accent by themeViewModel.accent.collectAsStateWithLifecycle()
-        ThemeBottomSheet(
-            currentMode = mode,
-            currentAccent = accent,
-            onModeChange = themeViewModel::setMode,
-            onAccentChange = themeViewModel::setAccent,
-            onDismiss = onDismissThemeSheet
-        )
+        val themeState by themeViewModel.uiState.collectAsStateWithLifecycle()
+        if (themeState is ThemeUiState.Success) {
+            val successState = themeState as ThemeUiState.Success
+            ThemeBottomSheet(
+                currentMode = successState.mode,
+                currentAccent = successState.accent,
+                onModeChange = themeViewModel::setMode,
+                onAccentChange = themeViewModel::setAccent,
+                onDismiss = onDismissThemeSheet
+            )
+        }
     }
 }
 

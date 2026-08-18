@@ -3,27 +3,32 @@ package com.laumar.aninote.data
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AnimeDao {
 
-    @Query("SELECT * FROM animes ORDER BY createdAt ASC")
-    fun getAll(): Flow<List<AnimeEntity>>
-
-    @Query("SELECT * FROM animes ORDER BY createdAt DESC")
-    fun getAllDesc(): Flow<List<AnimeEntity>>
+    @Query("SELECT * FROM animes ORDER BY createdAt ASC, id ASC")
+    fun getAllCanonical(): Flow<List<AnimeEntity>>
 
     @Query("SELECT * FROM animes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(:nombre)) LIMIT 1")
     suspend fun findByNameCaseInsensitive(nombre: String): AnimeEntity?
 
-    @Insert
-    suspend fun insert(anime: AnimeEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(anime: AnimeEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(animes: List<AnimeEntity>)
 
     @Update
     suspend fun update(anime: AnimeEntity)
+
+    @Query("UPDATE animes SET nombre = :nombre, vecesVisto = :vecesVisto WHERE id = :id")
+    suspend fun updateNameAndCount(id: Long, nombre: String, vecesVisto: Int)
 
     @Delete
     suspend fun delete(anime: AnimeEntity)
@@ -34,6 +39,9 @@ interface AnimeDao {
     @Query("DELETE FROM animes")
     suspend fun deleteAll()
 
-    @Insert
-    suspend fun insertAll(animes: List<AnimeEntity>)
+    @Transaction
+    suspend fun replaceAll(animes: List<AnimeEntity>) {
+        deleteAll()
+        insertAll(animes)
+    }
 }
