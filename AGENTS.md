@@ -8,7 +8,7 @@ Instrucciones para agentes de IA que trabajen en este repositorio.
 
 ## Cuando escribas código
 
-1. Escribí el código que se pide, siguiendo el `design-brief-v5.md` y las convenciones del proyecto.
+1. Escribí el código que se pide, siguiendo las convenciones del proyecto.
 2. Al terminar, indicá en tu respuesta final:
    - **Resumen**: qué archivos creaste/modificaste y qué hiciste en cada uno.
    - **Indicaciones**: qué debe verificar el usuario al compilar/probar (dependencias nuevas, imports, cambios de config, pasos manuales, edge cases).

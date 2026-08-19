@@ -186,9 +186,11 @@ private fun AnimeList(
                 isHighlighted = anime.id == highlightedAnimeId,
                 onDelete = { onDelete(anime) },
                 onChipClick = { onChipClick(anime) },
-                modifier = Modifier.clickable {
-                    onEdit(anime)
-                }
+                modifier = Modifier
+                    .animateItem()
+                    .clickable {
+                        onEdit(anime)
+                    }
             )
         }
     }

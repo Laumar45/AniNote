@@ -31,7 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.laumar.aninote.R
 import com.laumar.aninote.ui.components.SortToggle
-import com.laumar.aninote.viewmodel.SortOrder
+import com.laumar.aninote.model.SortOrder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

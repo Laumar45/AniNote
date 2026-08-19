@@ -32,6 +32,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import com.laumar.aninote.R
 import com.laumar.aninote.data.AnimeEntity
 import com.laumar.aninote.ui.components.AddEditDialog
@@ -97,20 +103,53 @@ fun AnimeListScreen(
     )
 
     val undoLabel = stringResource(R.string.action_undo)
+    var snackbarJob: Job? = null
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is UiEvent.ShowSnackbar -> snackbarHostState.showSnackbar(event.message)
+                is UiEvent.ShowSnackbar -> {
+                    snackbarJob?.cancel()
+                    snackbarJob = launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        snackbarHostState.showSnackbar(event.message)
+                    }
+                }
                 is UiEvent.ShowSnackbarWithUndo -> {
-                    val result = snackbarHostState.showSnackbar(
-                        message = event.message,
-                        actionLabel = undoLabel,
-                        duration = SnackbarDuration.Short
-                    )
-                    if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(event.animeId)
+                    snackbarJob?.cancel()
+                    snackbarJob = launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        val result = snackbarHostState.showSnackbar(
+                            message = event.message,
+                            actionLabel = undoLabel,
+                            duration = SnackbarDuration.Short
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.undoDelete(event.animeId)
+                        }
+                    }
                 }
                 is UiEvent.ScrollToTop -> {
-                    listState.animateScrollToItem(0)
+                    launch {
+                        listState.animateScrollToItem(0)
+                    }
+                }
+                is UiEvent.ScrollToAnime -> {
+                    launch {
+                        val targetIndex = withTimeoutOrNull(1500) {
+                            viewModel.uiState
+                                .map { state ->
+                                    (state as? AnimeListUiState.Success)
+                                        ?.animes
+                                        ?.indexOfFirst { it.id == event.animeId }
+                                        ?: -1
+                                }
+                                .filter { it >= 0 }
+                                .first()
+                        }
+                        if (targetIndex != null) {
+                            listState.animateScrollToItem(targetIndex)
+                        }
+                    }
                 }
             }
         }

@@ -3,9 +3,6 @@ package com.laumar.aninote.viewmodel
 import androidx.compose.runtime.Immutable
 import com.laumar.aninote.data.AnimeEntity
 
-enum class SortOrder { DESC, ASC }
-
-enum class ListFilter { ALL, REWATCHED }
 
 @Immutable
 data class AnimeUi(

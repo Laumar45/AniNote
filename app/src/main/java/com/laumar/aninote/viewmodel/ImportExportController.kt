@@ -37,7 +37,7 @@ class ImportExportController(
                         parsed to 0
                     } else {
                         val result = parseTxtFile(content)
-                        result.animes.map { it to 1 } to result.ignoredCount
+                        result.animes to result.ignoredCount
                     }
                 }
 

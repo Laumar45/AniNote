@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.laumar.aninote.R
-import com.laumar.aninote.viewmodel.SortOrder
+import com.laumar.aninote.model.SortOrder
 
 @Composable
 fun SortToggle(
@@ -33,7 +33,7 @@ fun SortToggle(
                 ),
                 onClick = { onSelectedChange(order) },
                 selected = selected == order,
-                icon = {},
+                icon = { SegmentedButtonDefaults.Icon(active = selected == order) },
                 label = {
                     Text(
                         text = label,

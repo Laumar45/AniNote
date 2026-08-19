@@ -4,10 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.laumar.aninote.data.AnimeEntity
 import com.laumar.aninote.data.AppPreferences
+import com.laumar.aninote.model.SortOrder
 import com.laumar.aninote.repository.AnimeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class AnimeViewModel(
     private val repository: AnimeRepository,
@@ -38,15 +38,13 @@ class AnimeViewModel(
     private val _dialog = MutableStateFlow(DialogState())
     val dialog: StateFlow<DialogState> = _dialog.asStateFlow()
 
-    private val _pendingDeleteIds = MutableStateFlow<Set<Long>>(emptySet())
     private val _pendingDeleteAnime = MutableStateFlow<AnimeEntity?>(null)
     val pendingDeleteAnime: StateFlow<AnimeEntity?> = _pendingDeleteAnime.asStateFlow()
 
     private val _highlightedAnimeId = MutableStateFlow<Long?>(null)
     val highlightedAnimeId: StateFlow<Long?> = _highlightedAnimeId.asStateFlow()
 
-    private var pendingDeleteJob: Job? = null
-    private var currentlyPendingId: Long? = null
+    private val recentlyDeletedAnimes = mutableMapOf<Long, AnimeEntity>()
 
     @OptIn(FlowPreview::class)
     private val debouncedQueryFlow = _query
@@ -56,15 +54,11 @@ class AnimeViewModel(
     val uiState: StateFlow<AnimeListUiState> = combine(
         repository.getAllCanonical(),
         debouncedQueryFlow,
-        preferences.sortOrderFlow,
-        _pendingDeleteIds
-    ) { entities, query, currentSortOrder, pendingDeletes ->
+        preferences.sortOrderFlow
+    ) { entities, query, currentSortOrder ->
 
-        // 1. Excluir pending deletes (borrado con Undo)
-        val visibleEntities = entities.filterNot { it.id in pendingDeletes }
-
-        // 2. Asignar numeración canónica (1..N sobre el orden ascendente histórico)
-        val canonicalList = visibleEntities.mapIndexed { index, entity ->
+        // 1. Asignar numeración canónica (1..N sobre el orden ascendente histórico)
+        val canonicalList = entities.mapIndexed { index, entity ->
             AnimeUi(
                 id = entity.id,
                 numero = index + 1,
@@ -74,11 +68,11 @@ class AnimeViewModel(
             )
         }
 
-        // 3. Aplicar búsqueda por nombre (case-insensitive)
+        // 2. Aplicar búsqueda por nombre (case-insensitive)
         val searchedList = if (query.isBlank()) canonicalList
         else canonicalList.filter { it.nombre.contains(query, ignoreCase = true) }
 
-        // 4. Aplicar orden de vista (Recientes = DESC, Antiguos = ASC)
+        // 3. Aplicar orden de vista (Recientes = DESC, Antiguos = ASC)
         val finalList = if (currentSortOrder == SortOrder.DESC) searchedList.asReversed() else searchedList
 
         AnimeListUiState.Success(
@@ -105,7 +99,7 @@ class AnimeViewModel(
     // --- Search & Sort ---
 
     fun onQueryChange(query: String) {
-        _query.value = query
+        _query.update { query }
     }
 
     fun onSortOrderChange(order: SortOrder) {
@@ -117,43 +111,47 @@ class AnimeViewModel(
     // --- Dialog ---
 
     fun openAddDialog() {
-        _dialog.value = DialogState(showDialog = true, nombre = "", vecesVisto = "1")
+        _dialog.update { DialogState(showDialog = true, nombre = "", vecesVisto = "1") }
     }
 
     fun openEditDialog(anime: AnimeUi) {
-        _dialog.value = DialogState(
-            showDialog = true,
-            editingAnime = AnimeEntity(
-                id = anime.id,
+        _dialog.update {
+            DialogState(
+                showDialog = true,
+                editingAnime = AnimeEntity(
+                    id = anime.id,
+                    nombre = anime.nombre,
+                    vecesVisto = anime.vecesVisto,
+                    createdAt = anime.createdAt
+                ),
                 nombre = anime.nombre,
-                vecesVisto = anime.vecesVisto,
-                createdAt = anime.createdAt
-            ),
-            nombre = anime.nombre,
-            vecesVisto = anime.vecesVisto.toString()
-        )
+                vecesVisto = anime.vecesVisto.toString()
+            )
+        }
     }
 
     fun openEditDialog(anime: AnimeEntity) {
-        _dialog.value = DialogState(
-            showDialog = true,
-            editingAnime = anime,
-            nombre = anime.nombre,
-            vecesVisto = anime.vecesVisto.toString()
-        )
+        _dialog.update {
+            DialogState(
+                showDialog = true,
+                editingAnime = anime,
+                nombre = anime.nombre,
+                vecesVisto = anime.vecesVisto.toString()
+            )
+        }
     }
 
     fun closeDialog() {
-        _dialog.value = DialogState()
+        _dialog.update { DialogState() }
     }
 
     fun onDialogNombreChange(nombre: String) {
-        _dialog.value = _dialog.value.copy(nombre = nombre)
+        _dialog.update { it.copy(nombre = nombre) }
     }
 
     fun onDialogVecesVistoChange(vecesVisto: String) {
         if (vecesVisto.all { it.isDigit() }) {
-            _dialog.value = _dialog.value.copy(vecesVisto = vecesVisto)
+            _dialog.update { it.copy(vecesVisto = vecesVisto) }
         }
     }
 
@@ -171,14 +169,14 @@ class AnimeViewModel(
                     AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
                 )
                 preferences.setSortOrder(SortOrder.DESC)
-                _highlightedAnimeId.value = newId
+                _highlightedAnimeId.update { newId }
                 _events.send(UiEvent.ScrollToTop)
                 _events.send(UiEvent.ShowSnackbar("Anime agregado"))
 
                 viewModelScope.launch {
                     delay(1200)
-                    if (_highlightedAnimeId.value == newId) {
-                        _highlightedAnimeId.value = null
+                    _highlightedAnimeId.update { current ->
+                        if (current == newId) null else current
                     }
                 }
             } else {
@@ -187,76 +185,58 @@ class AnimeViewModel(
                 )
                 _events.send(UiEvent.ShowSnackbar("Anime actualizado"))
             }
-            _dialog.value = DialogState()
+            _dialog.update { DialogState() }
         }
     }
 
     // --- Delete confirmation & Undo ---
 
     fun requestDelete(anime: AnimeUi) {
-        _pendingDeleteAnime.value = AnimeEntity(
-            id = anime.id,
-            nombre = anime.nombre,
-            vecesVisto = anime.vecesVisto,
-            createdAt = anime.createdAt
-        )
+        _pendingDeleteAnime.update {
+            AnimeEntity(
+                id = anime.id,
+                nombre = anime.nombre,
+                vecesVisto = anime.vecesVisto,
+                createdAt = anime.createdAt
+            )
+        }
     }
 
     fun requestDelete(anime: AnimeEntity) {
-        _pendingDeleteAnime.value = anime
+        _pendingDeleteAnime.update { anime }
     }
 
     fun cancelDelete() {
-        _pendingDeleteAnime.value = null
+        _pendingDeleteAnime.update { null }
     }
 
     fun confirmDelete() {
         val anime = _pendingDeleteAnime.value ?: return
-        _pendingDeleteAnime.value = null
+        _pendingDeleteAnime.update { null }
         executeDelete(anime)
     }
 
     private fun executeDelete(anime: AnimeEntity) {
-        val previousPendingId = currentlyPendingId
-        if (previousPendingId != null && previousPendingId != anime.id) {
-            pendingDeleteJob?.cancel()
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.deleteById(previousPendingId)
-                _pendingDeleteIds.value -= previousPendingId
-            }
-        }
-
-        currentlyPendingId = anime.id
-        _pendingDeleteIds.value += anime.id
-
+        recentlyDeletedAnimes[anime.id] = anime
         viewModelScope.launch {
-            _events.send(UiEvent.ShowSnackbarWithUndo("${anime.nombre} eliminado", anime.id))
-        }
-
-        pendingDeleteJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(4000)
             repository.deleteById(anime.id)
-            _pendingDeleteIds.value -= anime.id
-            if (currentlyPendingId == anime.id) {
-                currentlyPendingId = null
-            }
+            _events.send(UiEvent.ShowSnackbarWithUndo("${anime.nombre} eliminado", anime.id))
         }
     }
 
     fun undoDelete(animeId: Long) {
-        if (currentlyPendingId == animeId) {
-            pendingDeleteJob?.cancel()
-            _pendingDeleteIds.value -= animeId
-            currentlyPendingId = null
-        }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        val remaining = _pendingDeleteIds.value
-        if (remaining.isNotEmpty()) {
-            runBlocking(Dispatchers.IO) {
-                remaining.forEach { repository.deleteById(it) }
+        val animeToRestore = recentlyDeletedAnimes.remove(animeId)
+        if (animeToRestore != null) {
+            viewModelScope.launch {
+                repository.insert(animeToRestore)
+                _highlightedAnimeId.update { animeId }
+                _events.send(UiEvent.ScrollToAnime(animeId))
+                viewModelScope.launch {
+                    delay(1200)
+                    _highlightedAnimeId.update { current ->
+                        if (current == animeId) null else current
+                    }
+                }
             }
         }
     }
@@ -264,15 +244,7 @@ class AnimeViewModel(
     // --- Import/Export ---
 
     fun importAnimes(content: String, replace: Boolean) {
-        val remaining = _pendingDeleteIds.value
-        if (remaining.isNotEmpty()) {
-            pendingDeleteJob?.cancel()
-            viewModelScope.launch(Dispatchers.IO) {
-                remaining.forEach { repository.deleteById(it) }
-                _pendingDeleteIds.value = emptySet()
-                currentlyPendingId = null
-            }
-        }
+        recentlyDeletedAnimes.clear()
         importExportController.importAnimes(content, replace)
     }
 
