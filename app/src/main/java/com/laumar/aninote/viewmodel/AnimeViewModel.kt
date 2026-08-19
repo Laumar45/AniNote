@@ -17,10 +17,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class AnimeViewModel(
     private val repository: AnimeRepository,
@@ -33,9 +35,6 @@ class AnimeViewModel(
     val sortOrder: StateFlow<SortOrder> = preferences.sortOrderFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SortOrder.DESC)
 
-    private val _activeFilter = MutableStateFlow(ListFilter.ALL)
-    val activeFilter: StateFlow<ListFilter> = _activeFilter.asStateFlow()
-
     private val _dialog = MutableStateFlow(DialogState())
     val dialog: StateFlow<DialogState> = _dialog.asStateFlow()
 
@@ -43,7 +42,11 @@ class AnimeViewModel(
     private val _pendingDeleteAnime = MutableStateFlow<AnimeEntity?>(null)
     val pendingDeleteAnime: StateFlow<AnimeEntity?> = _pendingDeleteAnime.asStateFlow()
 
-    private var deleteJob: Job? = null
+    private val _highlightedAnimeId = MutableStateFlow<Long?>(null)
+    val highlightedAnimeId: StateFlow<Long?> = _highlightedAnimeId.asStateFlow()
+
+    private var pendingDeleteJob: Job? = null
+    private var currentlyPendingId: Long? = null
 
     @OptIn(FlowPreview::class)
     private val debouncedQueryFlow = _query
@@ -54,9 +57,8 @@ class AnimeViewModel(
         repository.getAllCanonical(),
         debouncedQueryFlow,
         preferences.sortOrderFlow,
-        _activeFilter,
         _pendingDeleteIds
-    ) { entities, query, currentSortOrder, filter, pendingDeletes ->
+    ) { entities, query, currentSortOrder, pendingDeletes ->
 
         // 1. Excluir pending deletes (borrado con Undo)
         val visibleEntities = entities.filterNot { it.id in pendingDeletes }
@@ -76,14 +78,8 @@ class AnimeViewModel(
         val searchedList = if (query.isBlank()) canonicalList
         else canonicalList.filter { it.nombre.contains(query, ignoreCase = true) }
 
-        // 4. Aplicar filtro secundario (Todos / vistos > 1)
-        val filteredList = when (filter) {
-            ListFilter.ALL -> searchedList
-            ListFilter.REWATCHED -> searchedList.filter { it.vecesVisto > 1 }
-        }
-
-        // 5. Aplicar orden de vista (Recientes = DESC, Antiguos = ASC)
-        val finalList = if (currentSortOrder == SortOrder.DESC) filteredList.asReversed() else filteredList
+        // 4. Aplicar orden de vista (Recientes = DESC, Antiguos = ASC)
+        val finalList = if (currentSortOrder == SortOrder.DESC) searchedList.asReversed() else searchedList
 
         AnimeListUiState.Success(
             animes = finalList,
@@ -106,7 +102,7 @@ class AnimeViewModel(
         emitEvent = _events::send
     )
 
-    // --- Search, Filter & Sort ---
+    // --- Search & Sort ---
 
     fun onQueryChange(query: String) {
         _query.value = query
@@ -116,10 +112,6 @@ class AnimeViewModel(
         viewModelScope.launch {
             preferences.setSortOrder(order)
         }
-    }
-
-    fun onFilterChange(filter: ListFilter) {
-        _activeFilter.value = filter
     }
 
     // --- Dialog ---
@@ -175,10 +167,20 @@ class AnimeViewModel(
 
         viewModelScope.launch {
             if (editing == null) {
-                repository.insert(
+                val newId = repository.insert(
                     AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
                 )
+                preferences.setSortOrder(SortOrder.DESC)
+                _highlightedAnimeId.value = newId
+                _events.send(UiEvent.ScrollToTop)
                 _events.send(UiEvent.ShowSnackbar("Anime agregado"))
+
+                viewModelScope.launch {
+                    delay(1200)
+                    if (_highlightedAnimeId.value == newId) {
+                        _highlightedAnimeId.value = null
+                    }
+                }
             } else {
                 repository.update(
                     editing.copy(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
@@ -189,7 +191,7 @@ class AnimeViewModel(
         }
     }
 
-    // --- Delete confirmation ---
+    // --- Delete confirmation & Undo ---
 
     fun requestDelete(anime: AnimeUi) {
         _pendingDeleteAnime.value = AnimeEntity(
@@ -215,65 +217,72 @@ class AnimeViewModel(
     }
 
     private fun executeDelete(anime: AnimeEntity) {
-        deleteJob?.cancel()
+        val previousPendingId = currentlyPendingId
+        if (previousPendingId != null && previousPendingId != anime.id) {
+            pendingDeleteJob?.cancel()
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.deleteById(previousPendingId)
+                _pendingDeleteIds.value -= previousPendingId
+            }
+        }
+
+        currentlyPendingId = anime.id
         _pendingDeleteIds.value += anime.id
 
         viewModelScope.launch {
             _events.send(UiEvent.ShowSnackbarWithUndo("${anime.nombre} eliminado", anime.id))
         }
 
-        deleteJob = viewModelScope.launch {
+        pendingDeleteJob = viewModelScope.launch(Dispatchers.IO) {
             delay(4000)
             repository.deleteById(anime.id)
             _pendingDeleteIds.value -= anime.id
+            if (currentlyPendingId == anime.id) {
+                currentlyPendingId = null
+            }
         }
     }
 
     fun undoDelete(animeId: Long) {
-        deleteJob?.cancel()
-        _pendingDeleteIds.value -= animeId
+        if (currentlyPendingId == animeId) {
+            pendingDeleteJob?.cancel()
+            _pendingDeleteIds.value -= animeId
+            currentlyPendingId = null
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        val remaining = _pendingDeleteIds.value
+        if (remaining.isNotEmpty()) {
+            runBlocking(Dispatchers.IO) {
+                remaining.forEach { repository.deleteById(it) }
+            }
+        }
     }
 
     // --- Import/Export ---
 
     fun importAnimes(content: String, replace: Boolean) {
-        val currentPending = _pendingDeleteAnime.value
-        if (currentPending != null) {
-            deleteJob?.cancel()
-            viewModelScope.launch {
-                repository.deleteById(currentPending.id)
-                _pendingDeleteIds.value -= currentPending.id
-                _pendingDeleteAnime.value = null
+        val remaining = _pendingDeleteIds.value
+        if (remaining.isNotEmpty()) {
+            pendingDeleteJob?.cancel()
+            viewModelScope.launch(Dispatchers.IO) {
+                remaining.forEach { repository.deleteById(it) }
+                _pendingDeleteIds.value = emptySet()
+                currentlyPendingId = null
             }
         }
         importExportController.importAnimes(content, replace)
     }
 
     suspend fun getExportTxt(): String {
-        val state = uiState.value
-        val animes = if (state is AnimeListUiState.Success) state.animes else emptyList()
-        val entities = animes.map {
-            AnimeEntity(
-                id = it.id,
-                nombre = it.nombre,
-                vecesVisto = it.vecesVisto,
-                createdAt = it.createdAt
-            )
-        }
+        val entities = repository.getAllCanonical().first()
         return importExportController.getExportTxt(entities)
     }
 
     suspend fun getExportJson(): String {
-        val state = uiState.value
-        val animes = if (state is AnimeListUiState.Success) state.animes else emptyList()
-        val entities = animes.map {
-            AnimeEntity(
-                id = it.id,
-                nombre = it.nombre,
-                vecesVisto = it.vecesVisto,
-                createdAt = it.createdAt
-            )
-        }
+        val entities = repository.getAllCanonical().first()
         return importExportController.getExportJson(entities)
     }
 }

@@ -29,32 +29,52 @@ fun rememberAnimeListFileActions(
         uri?.let {
             scope.launch {
                 val content = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() }
+                    context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader ->
+                        reader.readText()
+                    }
                 }
-                if (content != null) onImportLoaded(content, it.toString().endsWith(".json", ignoreCase = true))
+                if (content != null) {
+                    val trimmed = content.trim()
+                    val mimeType = context.contentResolver.getType(it)
+                    val isJson = (mimeType?.contains("json", ignoreCase = true) == true) ||
+                            (trimmed.startsWith("{") && trimmed.endsWith("}"))
+
+                    onImportLoaded(content, isJson)
+                }
             }
         }
     }
+
     val exportTxtLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                val exportContent = viewModel.getExportTxt()
+                val exportContent = withContext(Dispatchers.Default) {
+                    viewModel.getExportTxt()
+                }
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer -> writer.write(exportContent) }
+                    context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer ->
+                        writer.write(exportContent)
+                    }
                 }
             }
         }
     }
+
     val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                val exportContent = viewModel.getExportJson()
+                val exportContent = withContext(Dispatchers.Default) {
+                    viewModel.getExportJson()
+                }
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer -> writer.write(exportContent) }
+                    context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer ->
+                        writer.write(exportContent)
+                    }
                 }
             }
         }
     }
+
     return AnimeListFileActions(
         launchImport = { importLauncher.launch(arrayOf("text/plain", "application/json")) },
         launchExportTxt = { exportTxtLauncher.launch("anime_list.txt") },

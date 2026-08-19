@@ -1,6 +1,13 @@
 package com.laumar.aninote.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -20,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -48,12 +56,13 @@ fun AnimeListScreen(
     val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
     val dialogState by viewModel.dialog.collectAsStateWithLifecycle()
     val pendingDeleteAnime by viewModel.pendingDeleteAnime.collectAsStateWithLifecycle()
+    val highlightedAnimeId by viewModel.highlightedAnimeId.collectAsStateWithLifecycle()
 
+    val listState = rememberLazyListState()
     val dismissSearchFocus = rememberDismissSearchFocus()
     val snackbarHostState = remember { SnackbarHostState() }
     var isSearchFocused by remember { mutableStateOf(false) }
     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
-    var showMenu by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by rememberSaveable { mutableStateOf(false) }
     var pendingImportContent by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingImportIsJson by rememberSaveable { mutableStateOf(false) }
@@ -100,60 +109,80 @@ fun AnimeListScreen(
                     )
                     if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete(event.animeId)
                 }
+                is UiEvent.ScrollToTop -> {
+                    listState.animateScrollToItem(0)
+                }
             }
         }
     }
 
+    LaunchedEffect(sortOrder) {
+        listState.animateScrollToItem(0)
+    }
+
+    val totalCount = (uiState as? AnimeListUiState.Success)?.totalCount ?: 0
+    val visibleCount = (uiState as? AnimeListUiState.Success)?.visibleCount ?: 0
+    val isFilteredOrSearched = searchQuery.isNotBlank() || (totalCount != visibleCount)
+
     Scaffold(
         topBar = {
             AnimeListTopBar(
+                totalCount = totalCount,
+                visibleCount = visibleCount,
+                isFilteredOrSearched = isFilteredOrSearched,
                 sortOrder = sortOrder,
-                showMenu = showMenu,
-                onSortOrderChange = {
+                onSortOrderChanged = {
                     dismissSearchFocus()
                     viewModel.onSortOrderChange(it)
                 },
-                onShowThemeSheet = {
+                onOpenThemeSheet = {
                     dismissSearchFocus()
                     showThemeSheet = true
                 },
-                onShowMenuChange = {
-                    dismissSearchFocus()
-                    showMenu = it
-                },
-                onImport = {
+                onImportRequested = {
                     dismissSearchFocus()
                     fileActions.launchImport()
                 },
-                onExportTxt = {
+                onExportTxtRequested = {
                     dismissSearchFocus()
                     fileActions.launchExportTxt()
                 },
-                onExportJson = {
+                onExportJsonRequested = {
                     dismissSearchFocus()
                     fileActions.launchExportJson()
                 },
-                onDismissSearchFocus = { if (isSearchFocused) dismissSearchFocus() }
+                modifier = Modifier.dismissSearchOnPointerDown(dismissSearchFocus)
             )
         },
         floatingActionButton = {
+            val isFabVisible = !isSearchFocused && searchQuery.isBlank()
             val isEmptyList = (uiState as? AnimeListUiState.Success)?.animes?.isEmpty() == true && searchQuery.isBlank()
-            AnimeListFab(
-                isEmptyList = isEmptyList,
-                onClick = {
-                    dismissSearchFocus()
-                    viewModel.openAddDialog()
-                }
-            )
+
+            AnimatedVisibility(
+                visible = isFabVisible,
+                enter = fadeIn(tween(200)) + scaleIn(tween(200)),
+                exit = fadeOut(tween(200)) + scaleOut(tween(200))
+            ) {
+                AnimeListFab(
+                    isEmptyList = isEmptyList,
+                    onClick = {
+                        dismissSearchFocus()
+                        viewModel.openAddDialog()
+                    }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         AnimeListContent(
             searchQuery = searchQuery,
             uiState = uiState,
+            highlightedAnimeId = highlightedAnimeId,
+            listState = listState,
             contentPadding = padding,
             onQueryChange = viewModel::onQueryChange,
             onEdit = viewModel::openEditDialog,
+            onChipClick = viewModel::openEditDialog,
             onDelete = viewModel::requestDelete,
             onSearchFocusChanged = { isSearchFocused = it },
             onDismissSearchFocus = { if (isSearchFocused) dismissSearchFocus() }

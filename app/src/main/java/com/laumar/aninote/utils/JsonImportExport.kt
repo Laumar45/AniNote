@@ -5,19 +5,28 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * JSON schema for anime list export/import.
+ * JSON schema DTOs for anime list export/import.
  * Version 1: { "version": 1, "animes": [{ "nombre": "...", "vecesVisto": 1 }] }
  */
 @Serializable
-data class AnimeJson(
+data class AnimeJsonDto(
     val nombre: String,
-    val vecesVisto: Int
+    val vecesVisto: Int = 1
 )
 
 @Serializable
-data class AnimeListJson(
+data class AnimeBackupDto(
     val version: Int = 1,
-    val animes: List<AnimeJson> = emptyList()
+    val animes: List<AnimeJsonDto> = emptyList()
+)
+
+typealias AnimeJson = AnimeJsonDto
+typealias AnimeListJson = AnimeBackupDto
+
+data class ImportResult(
+    val importedCount: Int,
+    val skippedDuplicates: Int,
+    val invalidLines: Int
 )
 
 /**
@@ -39,7 +48,7 @@ val json = Json {
  * @throws kotlinx.serialization.SerializationException if JSON is malformed
  */
 fun parseJson(content: String): List<Pair<String, Int>> {
-    val parsed = json.decodeFromString<AnimeListJson>(content)
+    val parsed = json.decodeFromString<AnimeBackupDto>(content)
     require(parsed.version == 1) { "Versión de schema no soportada: ${parsed.version}" }
     return parsed.animes.map { it.nombre to it.vecesVisto }
 }
@@ -51,9 +60,9 @@ fun parseJson(content: String): List<Pair<String, Int>> {
  * @return Pretty-printed JSON string
  */
 fun serializeJson(animes: List<AnimeEntity>): String {
-    val data = AnimeListJson(
+    val data = AnimeBackupDto(
         version = 1,
-        animes = animes.map { AnimeJson(it.nombre, it.vecesVisto) }
+        animes = animes.map { AnimeJsonDto(nombre = it.nombre, vecesVisto = it.vecesVisto) }
     )
-    return json.encodeToString(AnimeListJson.serializer(), data)
+    return json.encodeToString(AnimeBackupDto.serializer(), data)
 }

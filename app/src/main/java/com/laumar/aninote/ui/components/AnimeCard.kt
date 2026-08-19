@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
@@ -21,10 +22,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -37,7 +40,9 @@ import java.net.URLEncoder
 @Composable
 fun AnimeCard(
     anime: AnimeUi,
+    isHighlighted: Boolean = false,
     onDelete: () -> Unit,
+    onChipClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -52,11 +57,23 @@ fun AnimeCard(
     val positionText = stringResource(R.string.anime_card_position, anime.numero)
 
     val isSeenMultipleTimes = anime.vecesVisto > 1
-    val backgroundColor = if (isSeenMultipleTimes) {
+    val baseColor = if (isSeenMultipleTimes) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
     } else {
         MaterialTheme.colorScheme.surface
     }
+
+    val targetColor = if (isHighlighted) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    } else {
+        baseColor
+    }
+
+    val backgroundColor by animateColorAsState(
+        targetValue = targetColor,
+        animationSpec = tween(durationMillis = if (isHighlighted) 150 else 1000),
+        label = "cardHighlightAnimation"
+    )
 
     Row(
         modifier = modifier
@@ -83,7 +100,7 @@ fun AnimeCard(
 
         if (isSeenMultipleTimes) {
             AssistChip(
-                onClick = {},
+                onClick = { onChipClick?.invoke() },
                 label = {
                     Text(
                         text = "x${anime.vecesVisto}",
@@ -100,7 +117,7 @@ fun AnimeCard(
 
         IconButton(onClick = { copyToClipboard(context, anime.nombre) }) {
             Icon(
-                imageVector = Icons.Default.ContentCopy,
+                painter = painterResource(R.drawable.ic_content_copy),
                 contentDescription = stringResource(R.string.anime_card_copy),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )

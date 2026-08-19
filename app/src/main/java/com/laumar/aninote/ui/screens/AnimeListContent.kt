@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
@@ -51,9 +52,12 @@ import com.laumar.aninote.viewmodel.AnimeUi
 fun AnimeListContent(
     searchQuery: String,
     uiState: AnimeListUiState,
+    highlightedAnimeId: Long? = null,
+    listState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues,
     onQueryChange: (String) -> Unit,
     onEdit: (AnimeUi) -> Unit,
+    onChipClick: (AnimeUi) -> Unit = onEdit,
     onDelete: (AnimeUi) -> Unit,
     onSearchFocusChanged: (Boolean) -> Unit,
     onDismissSearchFocus: () -> Unit
@@ -65,6 +69,7 @@ fun AnimeListContent(
             onDismissSearchFocus = onDismissSearchFocus,
             onFocusChanged = onSearchFocusChanged
         )
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,9 +91,15 @@ fun AnimeListContent(
                     } else {
                         AnimeList(
                             animes = uiState.animes,
+                            highlightedAnimeId = highlightedAnimeId,
+                            listState = listState,
                             onEdit = { anime ->
                                 onDismissSearchFocus()
                                 onEdit(anime)
+                            },
+                            onChipClick = { anime ->
+                                onDismissSearchFocus()
+                                onChipClick(anime)
                             },
                             onDelete = { anime ->
                                 onDismissSearchFocus()
@@ -120,11 +131,13 @@ private fun AnimeSearchField(
         placeholder = { Text(stringResource(R.string.search_placeholder)) },
         leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.search_content_desc)) },
         trailingIcon = {
-            if (query.isNotEmpty()) IconButton(onClick = {
-                onQueryChange("")
-                onDismissSearchFocus()
-            }) {
-                Icon(Icons.Default.Close, stringResource(R.string.search_clear_content_desc))
+            if (query.isNotEmpty()) {
+                IconButton(onClick = {
+                    onQueryChange("")
+                    onDismissSearchFocus()
+                }) {
+                    Icon(Icons.Default.Close, stringResource(R.string.search_clear_content_desc))
+                }
             }
         },
         singleLine = true,
@@ -142,12 +155,13 @@ private fun AnimeSearchField(
 @Composable
 private fun AnimeList(
     animes: List<AnimeUi>,
+    highlightedAnimeId: Long?,
+    listState: LazyListState,
     onEdit: (AnimeUi) -> Unit,
+    onChipClick: (AnimeUi) -> Unit,
     onDelete: (AnimeUi) -> Unit,
     onDismissSearchFocus: () -> Unit
 ) {
-    val listState = rememberLazyListState()
-
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
             onDismissSearchFocus()
@@ -162,10 +176,16 @@ private fun AnimeList(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(animes, key = { it.id }, contentType = { "AnimeCard" }) { anime ->
+        items(
+            items = animes,
+            key = { it.id },
+            contentType = { "anime_card" }
+        ) { anime ->
             AnimeCard(
                 anime = anime,
+                isHighlighted = anime.id == highlightedAnimeId,
                 onDelete = { onDelete(anime) },
+                onChipClick = { onChipClick(anime) },
                 modifier = Modifier.clickable {
                     onEdit(anime)
                 }

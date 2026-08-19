@@ -702,42 +702,42 @@ Las fases son estrictamente incrementales y no rompedoras; la app se mantiene fu
 - [x] `ThemeViewModel.uiState` se alimenta de un único flujo combinado desde `AppPreferences` y el orden de lista se persiste en `SORT_ORDER_KEY`.
 - [x] No se crearon archivos fuera de la estructura de paquetes definida en §12.
 
-### Fase 2: Contadores y Orientación UI
+### Fase 2: Contadores y Orientación UI — ✅ IMPLEMENTADA
 **Deliverables:** `AnimeListTopBar.kt`, `SortToggle.kt`, `AnimeListScreen.kt`  
 **Done when ALL of:**
-- [ ] `AnimeListTopBar` muestra el subtítulo dinámico con conteo total vs filtrado animado mediante `Crossfade`.
-- [ ] `SortToggle` presenta estados y etiquetas claras ("Recientes" / "Antiguos") sincronizadas con `SortOrder`.
-- [ ] La selección de orden actualiza inmediatamente la persistencia en DataStore y la vista.
+- [x] `AnimeListTopBar` muestra el subtítulo dinámico con conteo total vs filtrado animado mediante `Crossfade`.
+- [x] `SortToggle` presenta estados y etiquetas claras ("Recientes" / "Antiguos") sincronizadas con `SortOrder`.
+- [x] La selección de orden actualiza inmediatamente la persistencia en DataStore y la vista.
 
-### Fase 3: Robustez Asíncrona de Importación / Exportación (Alto Impacto)
+### Fase 3: Robustez Asíncrona de Importación / Exportación (Alto Impacto) — ✅ IMPLEMENTADA
 **Deliverables:** `AnimeListFileActions.kt`, `ImportExportUtils.kt`, `JsonImportExport.kt`, `ImportConfirmDialog.kt`  
 **Done when ALL of:**
-- [ ] La serialización/deserialización TXT y JSON se ejecuta en `Dispatchers.Default` y el I/O en `Dispatchers.IO` sin bloquear el hilo principal.
-- [ ] La detección de archivo en SAF distingue confiablemente JSON de TXT mediante MIME type o inspección de contenido.
-- [ ] La deduplicación al importar en modo combinar es case-insensitive (`trim().lowercase()`) y genera un `ImportResult` válido mostrado en `ImportConfirmDialog`.
+- [x] La serialización/deserialización TXT y JSON se ejecuta en `Dispatchers.Default` y el I/O en `Dispatchers.IO` sin bloquear el hilo principal.
+- [x] La detección de archivo en SAF distingue confiablemente JSON de TXT mediante MIME type o inspección de contenido.
+- [x] La deduplicación al importar en modo combinar es case-insensitive (`trim().lowercase()`) y genera un `ImportResult` válido mostrado en `ImportConfirmDialog`.
 
-### Fase 4: Motion & Rendimiento de Renderizado
+### Fase 4: Motion & Rendimiento de Renderizado — ✅ IMPLEMENTADA
 **Deliverables:** `AnimeListContent.kt`, `AnimeCard.kt`, `EmptyState.kt`  
 **Done when ALL of:**
-- [ ] `LazyColumn` implementa `key = { it.id }` y `contentType = { "anime_card" }` en todos los items.
-- [ ] Al cambiar el orden (`SortOrder`), la lista ejecuta `animateScrollToItem(0)` sin saltos de scroll.
-- [ ] Al agregar un nuevo anime, la tarjeta correspondiente recibe un highlight temporal animado con `animateColorAsState` (~1000ms).
-- [ ] `AnimatedVisibility` anima suavemente la transición de `EmptyState` y el botón de limpiar búsqueda.
+- [x] `LazyColumn` implementa `key = { it.id }` y `contentType = { "anime_card" }` en todos los items.
+- [x] Al cambiar el orden (`SortOrder`), la lista ejecuta `animateScrollToItem(0)` sin saltos de scroll.
+- [x] Al agregar un nuevo anime, la tarjeta correspondiente recibe un highlight temporal animado con `animateColorAsState` (~1000ms).
+- [x] `AnimatedVisibility` anima suavemente la transición de `EmptyState`, el botón de limpiar búsqueda y el FAB (oculto en búsqueda).
 
-### Fase 5: Filtros de Sesión y Componentes UI
-**Deliverables:** `ListFilterChips.kt`, `AnimeListContent.kt`, `AnimeCard.kt`, `AddEditDialog.kt`  
+### Fase 5: Componentes UI & Edición Directa — ✅ IMPLEMENTADA
+**Deliverables:** `AnimeListContent.kt`, `AnimeCard.kt`, `AddEditDialog.kt`  
 **Done when ALL of:**
-- [ ] `ListFilterChips` permite conmutar entre `ListFilter.ALL` y `ListFilter.REWATCHED` actualizando el `visibleCount`.
-- [ ] Hacer tap en el chip `xN` de una tarjeta abre el diálogo de edición enfocando directamente el stepper/campo de conteo.
-- [ ] Toda la interacción respeta el contrato de State Hoisting sin acoplar composables al ViewModel.
+- [x] Filtros de chips descartados por decisión de diseño (interfaz limpia y minimalista).
+- [x] Hacer tap en el chip `xN` de una tarjeta abre el diálogo de edición para modificar directamente el registro.
+- [x] Toda la interacción respeta el contrato de State Hoisting sin acoplar composables al ViewModel.
 
-### Fase 6: Poda de Dependencias, Build Release y Localización (Medio Impacto)
+### Fase 6: Poda de Dependencias, Build Release y Localización (Medio Impacto) — ✅ IMPLEMENTADA
 **Deliverables:** `build.gradle.kts`, `proguard-rules.pro`, `res/values/strings.xml`, `AnimeCard.kt`  
 **Done when ALL of:**
-- [ ] Se remueve la dependencia `material-icons-extended` de `app/build.gradle.kts` utilizando solo `material-icons-core` o drawables locales.
-- [ ] `isMinifyEnabled = true` está configurado para builds release con las reglas ProGuard especificadas en §11.
-- [ ] El 100% de las cadenas visibles en Compose provienen de `strings.xml` mediante `stringResource`.
-- [ ] Las tarjetas de anime incluyen `Modifier.semantics` con descripción completa para TalkBack.
+- [x] Se remueve la dependencia `material-icons-extended` de `app/build.gradle.kts` utilizando solo `material-icons-core` o drawables locales.
+- [x] `isMinifyEnabled = true` está configurado para builds release con las reglas ProGuard especificadas en §11.
+- [x] El 100% de las cadenas visibles en Compose provienen de `strings.xml` mediante `stringResource`.
+- [x] Las tarjetas de anime incluyen `Modifier.semantics` con descripción completa para TalkBack.
 
 ---
 

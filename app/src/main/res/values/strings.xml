@@ -3,6 +3,9 @@
 
     <!-- Top bar & menu -->
     <string name="title_my_list">Mi lista</string>
+    <string name="topbar_subtitle_total">%1$d animes</string>
+    <string name="topbar_subtitle_total_one">1 anime</string>
+    <string name="topbar_subtitle_filtered">%1$d de %2$d animes</string>
     <string name="settings_theme">Tema</string>
     <string name="menu_content_desc">Menú</string>
     <string name="menu_import">Importar</string>
@@ -18,9 +21,13 @@
     <string name="search_content_desc">Buscar</string>
     <string name="search_clear_content_desc">Limpiar</string>
 
+    <!-- Filter chips -->
+    <string name="filter_all">Todos</string>
+    <string name="filter_rewatched">Vistos > 1</string>
+
     <!-- Sort toggle -->
-    <string name="sort_asc">1 - 10</string>
-    <string name="sort_desc">10 - 1</string>
+    <string name="sort_recent">Recientes</string>
+    <string name="sort_oldest">Antiguos</string>
 
     <!-- Anime card -->
     <string name="anime_card_position">%1$d.</string>
@@ -54,7 +61,7 @@
     <!-- Empty state -->
     <string name="empty_list_desc">Lista vacía. Tocá el botón agregar para crear un anime.</string>
     <string name="empty_list_title">Empieza agregando tu primer anime</string>
-    <string name="empty_list_hint">Tocá el botón + para crear uno, o importá tu lista desde un .txt o un  .Json</string>
+    <string name="empty_list_hint">Tocá el botón + para crear uno, o importá tu lista desde un .txt o un .json</string>
     <string name="empty_no_results_desc">Sin resultados para %1$s</string>
     <string name="empty_no_results_text">Ningún anime matchea &quot;%1$s&quot;</string>
     <string name="empty_clear_search">Limpiar búsqueda</string>
