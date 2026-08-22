@@ -35,11 +35,11 @@ class AnimeViewModel(
     val sortOrder: StateFlow<SortOrder> = preferences.sortOrderFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SortOrder.DESC)
 
-    private val _dialog = MutableStateFlow(DialogState())
-    val dialog: StateFlow<DialogState> = _dialog.asStateFlow()
+    val dialogHolder = DialogStateHolder()
+    val dialog: StateFlow<DialogState> = dialogHolder.state
 
-    private val _pendingDeleteAnime = MutableStateFlow<AnimeEntity?>(null)
-    val pendingDeleteAnime: StateFlow<AnimeEntity?> = _pendingDeleteAnime.asStateFlow()
+    private val _pendingDeleteAnime = MutableStateFlow<AnimeUi?>(null)
+    val pendingDeleteAnime: StateFlow<AnimeUi?> = _pendingDeleteAnime.asStateFlow()
 
     private val _highlightedAnimeId = MutableStateFlow<Long?>(null)
     val highlightedAnimeId: StateFlow<Long?> = _highlightedAnimeId.asStateFlow()
@@ -110,61 +110,22 @@ class AnimeViewModel(
 
     // --- Dialog ---
 
-    fun openAddDialog() {
-        _dialog.update { DialogState(showDialog = true, nombre = "", vecesVisto = "1") }
-    }
-
-    fun openEditDialog(anime: AnimeUi) {
-        _dialog.update {
-            DialogState(
-                showDialog = true,
-                editingAnime = AnimeEntity(
-                    id = anime.id,
-                    nombre = anime.nombre,
-                    vecesVisto = anime.vecesVisto,
-                    createdAt = anime.createdAt
-                ),
-                nombre = anime.nombre,
-                vecesVisto = anime.vecesVisto.toString()
-            )
-        }
-    }
-
-    fun openEditDialog(anime: AnimeEntity) {
-        _dialog.update {
-            DialogState(
-                showDialog = true,
-                editingAnime = anime,
-                nombre = anime.nombre,
-                vecesVisto = anime.vecesVisto.toString()
-            )
-        }
-    }
-
-    fun closeDialog() {
-        _dialog.update { DialogState() }
-    }
-
-    fun onDialogNombreChange(nombre: String) {
-        _dialog.update { it.copy(nombre = nombre) }
-    }
-
-    fun onDialogVecesVistoChange(vecesVisto: String) {
-        if (vecesVisto.all { it.isDigit() }) {
-            _dialog.update { it.copy(vecesVisto = vecesVisto) }
-        }
-    }
+    fun openAddDialog() = dialogHolder.openAdd()
+    fun openEditDialog(anime: AnimeUi) = dialogHolder.openEdit(anime)
+    fun closeDialog() = dialogHolder.close()
+    fun onDialogNombreChange(nombre: String) = dialogHolder.onNombreChange(nombre)
+    fun onDialogVecesVistoChange(vecesVisto: String) = dialogHolder.onVecesVistoChange(vecesVisto)
 
     fun confirmDialog() {
-        val state = _dialog.value
+        val state = dialogHolder.consumeState()
         val nombre = state.nombre.replace(Regex("[\\r\\n]+"), " ").trim()
         val vecesVisto = state.vecesVisto.toIntOrNull() ?: 1
-        val editing = state.editingAnime
+        val editingId = state.editingAnimeId
 
         if (nombre.isBlank()) return
 
         viewModelScope.launch {
-            if (editing == null) {
+            if (editingId == null) {
                 val newId = repository.insert(
                     AnimeEntity(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
                 )
@@ -180,29 +141,17 @@ class AnimeViewModel(
                     }
                 }
             } else {
-                repository.update(
-                    editing.copy(nombre = nombre, vecesVisto = vecesVisto.coerceAtLeast(1))
+                repository.updateNameAndCount(
+                    editingId, nombre, vecesVisto.coerceAtLeast(1)
                 )
                 _events.send(UiEvent.ShowSnackbar("Anime actualizado"))
             }
-            _dialog.update { DialogState() }
         }
     }
 
     // --- Delete confirmation & Undo ---
 
     fun requestDelete(anime: AnimeUi) {
-        _pendingDeleteAnime.update {
-            AnimeEntity(
-                id = anime.id,
-                nombre = anime.nombre,
-                vecesVisto = anime.vecesVisto,
-                createdAt = anime.createdAt
-            )
-        }
-    }
-
-    fun requestDelete(anime: AnimeEntity) {
         _pendingDeleteAnime.update { anime }
     }
 
@@ -216,8 +165,14 @@ class AnimeViewModel(
         executeDelete(anime)
     }
 
-    private fun executeDelete(anime: AnimeEntity) {
-        recentlyDeletedAnimes[anime.id] = anime
+    private fun executeDelete(anime: AnimeUi) {
+        val entity = AnimeEntity(
+            id = anime.id,
+            nombre = anime.nombre,
+            vecesVisto = anime.vecesVisto,
+            createdAt = anime.createdAt
+        )
+        recentlyDeletedAnimes[anime.id] = entity
         viewModelScope.launch {
             repository.deleteById(anime.id)
             _events.send(UiEvent.ShowSnackbarWithUndo("${anime.nombre} eliminado", anime.id))

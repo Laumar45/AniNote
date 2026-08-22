@@ -19,10 +19,6 @@ data class AnimeBackupDto(
     val version: Int = 1,
     val animes: List<AnimeJsonDto> = emptyList()
 )
-
-typealias AnimeJson = AnimeJsonDto
-typealias AnimeListJson = AnimeBackupDto
-
 data class ImportResult(
     val importedCount: Int,
     val skippedDuplicates: Int,

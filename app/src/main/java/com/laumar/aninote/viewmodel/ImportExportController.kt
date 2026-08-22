@@ -9,7 +9,6 @@ import com.laumar.aninote.utils.parseTxtFile
 import com.laumar.aninote.utils.serializeJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -42,7 +41,7 @@ class ImportExportController(
                 }
 
                 if (animesToImport.isEmpty()) {
-                    emitEvent(UiEvent.ShowSnackbar("No se encontraron animes en el archivo"))
+                    emitEvent(UiEvent.ShowImportError(ImportError.EMPTY_FILE))
                     return@launch
                 }
 
@@ -65,19 +64,18 @@ class ImportExportController(
                             invalidLines = ignoredCount
                         )
                     } else {
-                        // Combine mode: Case-insensitive in-memory deduplication
-                        val existingNames = repository.getAllCanonical().first()
-                            .map { it.nombre.trim().lowercase() }
-                            .toSet()
+                        // Combine mode: Case-insensitive SQL deduplication with O(1) HashSet lookup
+                        val seenNames = repository.getAllNamesNormalized().toHashSet()
 
                         val newEntities = mutableListOf<AnimeEntity>()
                         var duplicates = 0
 
                         animesToImport.forEachIndexed { index, (nombre, vecesVisto) ->
                             val normalized = nombre.trim().lowercase()
-                            if (normalized in existingNames || newEntities.any { it.nombre.trim().lowercase() == normalized }) {
+                            if (normalized in seenNames) {
                                 duplicates++
                             } else {
+                                seenNames.add(normalized)
                                 newEntities.add(
                                     AnimeEntity(
                                         nombre = nombre,
@@ -100,32 +98,16 @@ class ImportExportController(
                     }
                 }
 
-                // 3. User feedback message
-                val parts = mutableListOf("Importaste ${importResult.importedCount} animes")
-                if (importResult.invalidLines > 0) {
-                    parts.add("${importResult.invalidLines} líneas ignoradas")
-                }
-                if (importResult.skippedDuplicates > 0) {
-                    parts.add("${importResult.skippedDuplicates} duplicados omitidos")
-                }
-                if (replace) {
-                    parts.add("lista reemplazada")
-                }
-
-                val message = if (parts.size > 1) {
-                    "${parts[0]} (${parts.drop(1).joinToString(", ")})"
-                } else {
-                    parts[0]
-                }
-                emitEvent(UiEvent.ShowSnackbar(message))
+                // 3. User feedback event
+                emitEvent(UiEvent.ShowImportSuccess(importResult, replace))
 
             } catch (e: Exception) {
-                val msg = when {
-                    e is kotlinx.serialization.SerializationException -> "Archivo JSON inválido o malformado"
-                    e is IllegalArgumentException -> e.message ?: "Versión o formato de archivo no soportado"
-                    else -> "Error al procesar el archivo de importación"
+                val error = when (e) {
+                    is kotlinx.serialization.SerializationException -> ImportError.INVALID_JSON
+                    is IllegalArgumentException -> ImportError.UNSUPPORTED_VERSION
+                    else -> ImportError.GENERIC
                 }
-                emitEvent(UiEvent.ShowSnackbar(msg))
+                emitEvent(UiEvent.ShowImportError(error))
             }
         }
     }

@@ -59,6 +59,8 @@ fun AnimeListContent(
     onEdit: (AnimeUi) -> Unit,
     onChipClick: (AnimeUi) -> Unit = onEdit,
     onDelete: (AnimeUi) -> Unit,
+    onCopy: (String) -> Unit,
+    onSearchWeb: (String) -> Unit,
     onSearchFocusChanged: (Boolean) -> Unit,
     onDismissSearchFocus: () -> Unit
 ) {
@@ -105,6 +107,8 @@ fun AnimeListContent(
                                 onDismissSearchFocus()
                                 onDelete(anime)
                             },
+                            onCopy = onCopy,
+                            onSearchWeb = onSearchWeb,
                             onDismissSearchFocus = onDismissSearchFocus
                         )
                     }
@@ -160,6 +164,8 @@ private fun AnimeList(
     onEdit: (AnimeUi) -> Unit,
     onChipClick: (AnimeUi) -> Unit,
     onDelete: (AnimeUi) -> Unit,
+    onCopy: (String) -> Unit,
+    onSearchWeb: (String) -> Unit,
     onDismissSearchFocus: () -> Unit
 ) {
     LaunchedEffect(listState.isScrollInProgress) {
@@ -185,6 +191,8 @@ private fun AnimeList(
                 anime = anime,
                 isHighlighted = anime.id == highlightedAnimeId,
                 onDelete = { onDelete(anime) },
+                onCopy = onCopy,
+                onSearchWeb = onSearchWeb,
                 onChipClick = { onChipClick(anime) },
                 modifier = Modifier
                     .animateItem()

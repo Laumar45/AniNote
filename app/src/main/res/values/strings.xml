@@ -80,4 +80,17 @@
 
     <!-- Snackbar -->
     <string name="action_undo">Deshacer</string>
+
+    <!-- Import results & errors -->
+    <string name="import_success_count_one">Importaste 1 anime</string>
+    <string name="import_success_count">Importaste %1$d animes</string>
+    <string name="import_ignored_lines_one">1 línea ignorada</string>
+    <string name="import_ignored_lines">%1$d líneas ignoradas</string>
+    <string name="import_duplicates_one">1 duplicado omitido</string>
+    <string name="import_duplicates">%1$d duplicados omitidos</string>
+    <string name="import_replaced">lista reemplazada</string>
+    <string name="import_error_empty">No se encontraron animes en el archivo</string>
+    <string name="import_error_invalid_json">Archivo JSON inválido o malformado</string>
+    <string name="import_error_unsupported_version">Versión o formato de archivo no soportado</string>
+    <string name="import_error_generic">Error al procesar el archivo de importación</string>
 </resources>

@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -39,14 +40,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import com.laumar.aninote.R
-import com.laumar.aninote.data.AnimeEntity
 import com.laumar.aninote.ui.components.AddEditDialog
 import com.laumar.aninote.ui.components.DeleteConfirmDialog
 import com.laumar.aninote.ui.components.ImportConfirmDialog
 import com.laumar.aninote.ui.components.ThemeBottomSheet
 import com.laumar.aninote.viewmodel.AnimeListUiState
+import com.laumar.aninote.viewmodel.AnimeUi
 import com.laumar.aninote.viewmodel.AnimeViewModel
 import com.laumar.aninote.viewmodel.DialogState
+import com.laumar.aninote.viewmodel.ImportError
 import com.laumar.aninote.viewmodel.ThemeUiState
 import com.laumar.aninote.viewmodel.ThemeViewModel
 import com.laumar.aninote.viewmodel.UiEvent
@@ -64,6 +66,7 @@ fun AnimeListScreen(
     val pendingDeleteAnime by viewModel.pendingDeleteAnime.collectAsStateWithLifecycle()
     val highlightedAnimeId by viewModel.highlightedAnimeId.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
     val listState = rememberLazyListState()
     val dismissSearchFocus = rememberDismissSearchFocus()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -126,6 +129,58 @@ fun AnimeListScreen(
                         if (result == SnackbarResult.ActionPerformed) {
                             viewModel.undoDelete(event.animeId)
                         }
+                    }
+                }
+                is UiEvent.ShowImportSuccess -> {
+                    snackbarJob?.cancel()
+                    snackbarJob = launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        val countText = if (event.result.importedCount == 1) {
+                            context.getString(R.string.import_success_count_one)
+                        } else {
+                            context.getString(R.string.import_success_count, event.result.importedCount)
+                        }
+                        val parts = mutableListOf(countText)
+                        if (event.result.invalidLines > 0) {
+                            parts.add(
+                                if (event.result.invalidLines == 1) {
+                                    context.getString(R.string.import_ignored_lines_one)
+                                } else {
+                                    context.getString(R.string.import_ignored_lines, event.result.invalidLines)
+                                }
+                            )
+                        }
+                        if (event.result.skippedDuplicates > 0) {
+                            parts.add(
+                                if (event.result.skippedDuplicates == 1) {
+                                    context.getString(R.string.import_duplicates_one)
+                                } else {
+                                    context.getString(R.string.import_duplicates, event.result.skippedDuplicates)
+                                }
+                            )
+                        }
+                        if (event.isReplaced) {
+                            parts.add(context.getString(R.string.import_replaced))
+                        }
+                        val message = if (parts.size > 1) {
+                            "${parts[0]} (${parts.drop(1).joinToString(", ")})"
+                        } else {
+                            parts[0]
+                        }
+                        snackbarHostState.showSnackbar(message)
+                    }
+                }
+                is UiEvent.ShowImportError -> {
+                    snackbarJob?.cancel()
+                    snackbarJob = launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        val msg = when (event.error) {
+                            ImportError.EMPTY_FILE -> context.getString(R.string.import_error_empty)
+                            ImportError.INVALID_JSON -> context.getString(R.string.import_error_invalid_json)
+                            ImportError.UNSUPPORTED_VERSION -> context.getString(R.string.import_error_unsupported_version)
+                            ImportError.GENERIC -> context.getString(R.string.import_error_generic)
+                        }
+                        snackbarHostState.showSnackbar(msg)
                     }
                 }
                 is UiEvent.ScrollToTop -> {
@@ -223,6 +278,8 @@ fun AnimeListScreen(
             onEdit = viewModel::openEditDialog,
             onChipClick = viewModel::openEditDialog,
             onDelete = viewModel::requestDelete,
+            onCopy = { name -> copyToClipboard(context, name) },
+            onSearchWeb = { name -> searchInGoogle(context, name) },
             onSearchFocusChanged = { isSearchFocused = it },
             onDismissSearchFocus = { if (isSearchFocused) dismissSearchFocus() }
         )
@@ -246,7 +303,7 @@ private fun AnimeListOverlays(
     viewModel: AnimeViewModel,
     themeViewModel: ThemeViewModel,
     dialogState: DialogState,
-    pendingDeleteAnime: AnimeEntity?,
+    pendingDeleteAnime: AnimeUi?,
     showThemeSheet: Boolean,
     showImportDialog: Boolean,
     pendingImportContent: String?,
@@ -270,7 +327,7 @@ private fun AnimeListOverlays(
     }
 
     if (dialogState.showDialog) {
-        val title = if (dialogState.editingAnime == null) {
+        val title = if (dialogState.editingAnimeId == null) {
             stringResource(R.string.dialog_add_title)
         } else {
             stringResource(R.string.dialog_edit_title)
@@ -328,4 +385,20 @@ private fun AnimeListFab(isEmptyList: Boolean, onClick: () -> Unit) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.fab_add))
         }
     }
+}
+
+private fun copyToClipboard(context: android.content.Context, text: String) {
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+            as android.content.ClipboardManager
+    val clip = android.content.ClipData.newPlainText("anime_name", text)
+    clipboard.setPrimaryClip(clip)
+}
+
+private fun searchInGoogle(context: android.content.Context, query: String) {
+    val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+    val intent = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse("https://www.google.com/search?q=$encoded")
+    )
+    context.startActivity(intent)
 }

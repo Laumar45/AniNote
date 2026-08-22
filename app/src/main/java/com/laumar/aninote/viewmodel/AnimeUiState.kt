@@ -1,7 +1,6 @@
 package com.laumar.aninote.viewmodel
 
 import androidx.compose.runtime.Immutable
-import com.laumar.aninote.data.AnimeEntity
 
 
 @Immutable
@@ -24,7 +23,7 @@ sealed interface AnimeListUiState {
 
 data class DialogState(
     val showDialog: Boolean = false,
-    val editingAnime: AnimeEntity? = null,
+    val editingAnimeId: Long? = null,
     val nombre: String = "",
     val vecesVisto: String = "1"
 )

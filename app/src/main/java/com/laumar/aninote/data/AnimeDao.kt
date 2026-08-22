@@ -15,6 +15,9 @@ interface AnimeDao {
     @Query("SELECT * FROM animes ORDER BY createdAt ASC, id ASC")
     fun getAllCanonical(): Flow<List<AnimeEntity>>
 
+    @Query("SELECT LOWER(TRIM(nombre)) FROM animes")
+    suspend fun getAllNamesNormalized(): List<String>
+
     @Query("SELECT * FROM animes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(:nombre)) LIMIT 1")
     suspend fun findByNameCaseInsensitive(nombre: String): AnimeEntity?
 

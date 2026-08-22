@@ -8,9 +8,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.laumar.aninote.data.AppDatabase
-import com.laumar.aninote.data.AppPreferences
-import com.laumar.aninote.repository.AnimeRepository
 import com.laumar.aninote.ui.screens.AnimeListScreen
 import com.laumar.aninote.ui.theme.AniNoteTheme
 import com.laumar.aninote.viewmodel.AnimeViewModel
@@ -26,18 +23,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val database = AppDatabase.getInstance(applicationContext)
-        val preferences = AppPreferences(applicationContext)
-        val repository = AnimeRepository(database.animeDao())
+        val container = (application as AniNoteApp).container
 
         val animeViewModel = ViewModelProvider(
             this,
-            AnimeViewModelFactory(repository, preferences)
+            AnimeViewModelFactory(container.animeRepository, container.appPreferences)
         )[AnimeViewModel::class.java]
 
         val themeViewModel = ViewModelProvider(
             this,
-            ThemeViewModelFactory(preferences)
+            ThemeViewModelFactory(container.appPreferences)
         )[ThemeViewModel::class.java]
 
         splashScreen.setKeepOnScreenCondition {

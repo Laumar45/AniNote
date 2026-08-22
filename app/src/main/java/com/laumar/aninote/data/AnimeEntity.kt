@@ -2,9 +2,7 @@ package com.laumar.aninote.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.compose.runtime.Immutable
 
-@Immutable
 @Entity(tableName = "animes")
 data class AnimeEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

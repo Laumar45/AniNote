@@ -8,12 +8,18 @@ class AnimeRepository(private val dao: AnimeDao) {
 
     fun getAllCanonical(): Flow<List<AnimeEntity>> = dao.getAllCanonical()
 
+    suspend fun getAllNamesNormalized(): List<String> = dao.getAllNamesNormalized()
+
     suspend fun insert(anime: AnimeEntity): Long {
         return dao.insert(anime)
     }
 
     suspend fun update(anime: AnimeEntity) {
         dao.updateNameAndCount(anime.id, anime.nombre, anime.vecesVisto)
+    }
+
+    suspend fun updateNameAndCount(id: Long, nombre: String, vecesVisto: Int) {
+        dao.updateNameAndCount(id, nombre, vecesVisto)
     }
 
     suspend fun delete(anime: AnimeEntity) {
